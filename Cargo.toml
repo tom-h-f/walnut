@@ -4,20 +4,17 @@ version = "0.1.0"
 edition = "2018"
 authors = ["Tom French <tom@orseti.com>"]
 
-
 [dependencies]
 bootloader = "0.9.8"
 volatile = "0.2.6"
 spin = "0.5.2"
+x86_64 = "0.14.4"
+uart_16550 = "0.2.15"
 
 [dependencies.lazy_static]
 version = "1.0"
 features = ["spin_no_std"]
 
-
-
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
+[package.metadata.bootimage]
+test-args = ["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio"]
+test-success-exit-code = 33         # (0x10 << 1) | 1
