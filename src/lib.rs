@@ -1,10 +1,12 @@
 #![no_std]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks, allow_internal_unsafe, abi_x86_interrupt, asm)]
+#![feature(alloc_error_handler)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
+extern crate alloc;
 
 pub mod serial;
 pub mod graphics;
@@ -14,6 +16,17 @@ pub mod pith;
 
 pub fn init() {
     pith::init();
+}
+
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
+}
+
+#[alloc_error_handler]
+fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
+    panic!("allocation error: {:?}", layout)
 }
 
 pub fn test_runner(tests: &[&dyn Testable]) {
@@ -28,7 +41,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
     qemu::exit(qemu::ExitCode::Failed);
-    loop {}
+    hlt_loop();
 }
 
 
@@ -46,14 +59,18 @@ where
         serial_println!("[ok]");
     }
 }
+#[cfg(test)]
+use bootloader::{entry_point, BootInfo};
+
+#[cfg(test)]
+entry_point!(test_kmain);
 
 /// Entry point for `cargo xtest`
 #[cfg(test)]
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
+fn test_kmain(_boot_info: &'static BootInfo) -> ! {
     init();
     test_main();
-    loop {}
+    hlt_loop();
 }
 
 #[cfg(test)]
