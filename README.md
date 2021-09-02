@@ -1,4 +1,4 @@
-![Walnut Logo](assets/img/WalnutComplete.svg)
+<img alt="Walnut Logo" src="assets/img/WalnutComplete.svg" style="text-align:center">
 
 # AOS - Rust Microkernel-based OS
 
