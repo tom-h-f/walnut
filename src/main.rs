@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(custom_test_frameworks, asm)]
+#![feature(custom_test_frameworks, asm, const_mut_refs)]
 #![test_runner(aos::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
@@ -19,7 +19,7 @@ entry_point!(kmain);
 fn kmain(boot_info: &'static BootInfo) -> ! {
     use aos::pith::memory::BootInfoFrameAllocator;
 
-    println!("Hello World{}", "!");
+    println!("hello bitches");
     aos::init();
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
