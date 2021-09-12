@@ -1,11 +1,35 @@
 #![no_std]
 #![no_main]
+#![feature(asm, abi_efiapi)]
+#![feature(panic_info_message)]
+#[doc(hidden)]
+mod core_fns;
+#[doc(hidden)]
+mod efi;
+#[doc(hidden)]
+#[macro_use]
+mod print;
+pub mod kernel;
+
+#[cfg(debug_assertions)]
+const VERBOSE: bool = true;
+#[cfg(not(debug_assertions))]
+const VERBOSE: bool = false;
+
+use efi::{EfiHandle, EfiStatus, EfiSystemTable};
 
 #[no_mangle]
-extern "C" fn efi_main() {}
+extern "C" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus {
+    unsafe {
+        efi::register_system_table(st);
+    }
 
-use core::panic::PanicInfo;
+
+    panic!("bob");
+}
+
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
+    print!("PANIC!!!\n{:?}\n", _info.message());
     loop {}
 }
