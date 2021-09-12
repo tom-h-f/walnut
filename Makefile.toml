@@ -1,0 +1,59 @@
+[tasks.format]
+description = "Runs the cargo rustfmt plugin."
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt"]
+
+[tasks.docs]
+description = "Generate rust documentation."
+command = "cargo"
+args = ["doc", "--no-deps"]
+
+[tasks.build_internal]
+command = "cargo"
+args = ["build"]
+
+
+[tasks.b]
+script = [
+  "mkdir -p target/EFI/BOOT",
+  "cp target/x86_64-unknown-uefi/debug/walnut.efi target/EFI/BOOT/BOOTx64.EFI"
+]
+dependencies = ["format", "build_internal"]
+
+[tasks.test]
+command = "cargo"
+args = ["test"]
+dependencies = ["clean"]
+
+[tasks.run]
+script = '''
+  qemu-system-x86_64 \
+  -enable-kvm \
+  -nodefaults \
+  -vga std \
+  -machine q35,accel=kvm:tcg \
+  -m 512M     \
+  -drive if=pflash,format=raw,readonly,file=/usr/share/ovmf/OVMF.fd \
+  -drive format=raw,file=fat:rw:./target/ \
+  -serial stdio \
+  -nographic
+'''
+dependencies = ["b"]
+
+[tasks.debug]
+script = '''
+  qemu-system-x86_64 \
+  -enable-kvm \
+  -nodefaults \
+  -vga std \
+  -machine q35,accel=kvm:tcg \
+  -m 512M     \
+  -drive if=pflash,format=raw,readonly,file=/usr/share/ovmf/OVMF.fd \
+  -drive format=raw,file=fat:rw:./target/ \
+  -serial stdio \
+  -s -S \
+  -nographic
+'''
+dependencies = ["b"]
+
