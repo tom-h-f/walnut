@@ -24,12 +24,22 @@ extern "C" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus
         efi::register_system_table(st);
     }
 
-
-    panic!("bob");
+    for i in 0..20 {
+        print!(".");
+        if i == 9 {
+        }
+    }
+    EfiStatus(0)
 }
 
 #[panic_handler]
 fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
-    print!("PANIC!!!\n{:?}\n", _info.message());
+    println!("!!! PANIC !!!");
+    if let Some(loc) = _info.location() {
+        println!("Location: {}", loc);
+    }
+    if let Some(msg) = _info.message() {
+        println!("Message:  {}", msg);
+    }
     loop {}
 }
