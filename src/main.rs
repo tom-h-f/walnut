@@ -22,14 +22,10 @@ use efi::{EfiHandle, EfiStatus, EfiSystemTable};
 extern "C" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus {
     unsafe {
         efi::register_system_table(st);
+        efi::get_memory_map();
     }
 
-    for i in 0..20 {
-        print!(".");
-        if i == 9 {
-        }
-    }
-    EfiStatus(0)
+    panic!("bob");
 }
 
 #[panic_handler]
