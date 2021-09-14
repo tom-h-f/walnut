@@ -19,7 +19,7 @@ script = [
   "mkdir -p target/EFI/BOOT",
   "cp target/x86_64-unknown-uefi/debug/walnut.efi target/EFI/BOOT/BOOTx64.EFI"
 ]
-dependencies = ["format", "build_internal"]
+dependencies = ["build_internal"]
 
 [tasks.test]
 command = "cargo"

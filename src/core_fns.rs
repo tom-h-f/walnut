@@ -29,8 +29,8 @@ pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
     let mut i = 0;
     while i < n {
         // calculate offsets from pointers w/ loop counter
-        let a = *s1.offset(i as isize);
-        let b = *s2.offset(i as isize);
+        let a = *s1.add(i);
+        let b = *s2.add(i);
         // if both values at ptr+offset are not equal,
         // return the difference
         if a != b {

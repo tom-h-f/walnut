@@ -11,18 +11,13 @@ mod efi;
 mod print;
 pub mod kernel;
 
-#[cfg(debug_assertions)]
-const VERBOSE: bool = true;
-#[cfg(not(debug_assertions))]
-const VERBOSE: bool = false;
-
 use efi::{EfiHandle, EfiStatus, EfiSystemTable};
 
 #[no_mangle]
 extern "C" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus {
     unsafe {
         efi::register_system_table(st);
-        efi::get_memory_map();
+        let res = efi::get_memory_map().unwrap();
     }
 
     panic!("bob");
