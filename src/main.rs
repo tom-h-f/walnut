@@ -17,10 +17,15 @@ use efi::{EfiHandle, EfiStatus, EfiSystemTable};
 extern "C" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus {
     unsafe {
         efi::register_system_table(st);
-        let res = efi::get_memory_map().unwrap();
+        println!("Loaded UEFI System Table at {:p}", st);
+
+        println!("Exiting Boot services...");
+        efi::exit_boot_services(_handle);
     }
 
-    panic!("bob");
+
+
+    panic!("efi_main exited");
 }
 
 #[panic_handler]

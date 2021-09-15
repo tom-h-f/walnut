@@ -1,5 +1,3 @@
-use crate::println;
-
 const EFI_PAGE_SIZE: u64 = 4096;
 /// Collection fo related interfaces
 /// Type: `void *`
@@ -9,9 +7,11 @@ pub struct EfiHandle(usize);
 
 /// Collection fo related interfaces
 /// Type: `void *`
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct EfiStatus(pub usize);
+
+const EFI_SUCCESS: EfiStatus = EfiStatus(0x8000000000000000);
 
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
@@ -143,7 +143,7 @@ pub struct EfiSystemTable {
 
     console_err_handle: EfiHandle,
 
-    console_err: EfiSimpleTextOutputProtocol,
+    console_err: *const EfiSimpleTextOutputProtocol,
 
     _runtime_services: usize,
 
@@ -152,46 +152,45 @@ pub struct EfiSystemTable {
     _configuration_table: usize,
 }
 
-
 #[derive(Clone, Copy, Debug)]
 #[repr(u32)]
 pub enum EfiMemoryType {
     /// This enum variant is not used.
-    Reserved                =  0,
+    Reserved = 0,
     /// The code portions of a loaded UEFI application.
-    LoaderCode             =  1,
+    LoaderCode = 1,
     /// The data portions of a loaded UEFI applications,
     /// as well as any memory allocated by it.
-    LoaderData             =  2,
+    LoaderData = 2,
     /// Code of the boot drivers.
     ///
     /// Can be reused after OS is loaded.
-    BootServicesCode      =  3,
+    BootServicesCode = 3,
     /// Memory used to store boot drivers' data.
     ///
     /// Can be reused after OS is loaded.
-    BootServicesData      =  4,
+    BootServicesData = 4,
     /// Runtime drivers' code.
-    RuntimeServicesCode   =  5,
+    RuntimeServicesCode = 5,
     /// Runtime services' code.
-    RuntimeServicesData   =  6,
+    RuntimeServicesData = 6,
     /// Free usable memory.
-    Conventional            =  7,
+    Conventional = 7,
     /// Memory in which errors have been detected.
-    Unusable                =  8,
+    Unusable = 8,
     /// Memory that holds ACPI tables.
     /// Can be reclaimed after they are parsed.
-    AcpiReclaim            =  9,
+    AcpiReclaim = 9,
     /// Firmware-reserved addresses.
-    AcpiNonVolatile       = 10,
+    AcpiNonVolatile = 10,
     /// A region used for memory-mapped I/O.
-    Mmio                    = 11,
+    Mmio = 11,
     /// Address space used for memory-mapped port I/O.
-    MmioPortSpace         = 12,
+    MmioPortSpace = 12,
     /// Address space which is part of the processor.
-    PalCode                = 13,
+    PalCode = 13,
     /// Memory region which is usable and is also non-volatile.
-    PersistentMemory       = 14,
+    PersistentMemory = 14,
 }
 
 impl From<u32> for EfiMemoryType {
@@ -213,21 +212,20 @@ impl From<u32> for EfiMemoryType {
             12 => MmioPortSpace,
             13 => PalCode,
             14 => PersistentMemory,
-            _  => { panic!("Unsupported memory type supplied!")}
+            _ => {
+                panic!("Unsupported memory type supplied!")
+            }
         }
     }
 }
 
 impl EfiMemoryType {
-    /// Returns whether or not the memory type is available 
+    /// Returns whether or not the memory type is available
     /// for general purpose use after boot services have been exited (brexit).
     pub fn available_post_brexit(&self) -> bool {
         use EfiMemoryType::*;
         match self {
-            BootServicesCode |
-            BootServicesData |
-            Conventional     |
-            PersistentMemory => true,
+            BootServicesCode | BootServicesData | Conventional | PersistentMemory => true,
             _ => false,
         }
     }
@@ -296,50 +294,59 @@ pub fn output_string(string: &str) {
     }
 }
 
-pub fn get_memory_map() -> Option<usize>  {
-
+/// Gets the current memory map from the global `EFI_SYSTEM_TABLE`
+/// retreives the memory map key, then uses that aswell as the `handle`
+/// parameter to exit UEFI boot services.
+pub fn exit_boot_services(handle: EfiHandle) -> u64 {
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
-    if st.is_null() { return None; }
+    if st.is_null() {
+        panic!("unable to retreive EFI_SYSTEM_TABLE");
+    }
 
     // declare variables so we can send them to `get_memory_map`
     // to receive the mutated values back
-    let mut mmap = [0u8; 4 * 1024];
+    let mut mmap = [0u8; 16 * 1024];
     let mut free_memory = 0u64;
-        let mut map_key = 0;
+    let mut map_key = 0;
+    let mut mmap_size = core::mem::size_of_val(&mmap);
+    let mut desc_size = 0;
+    let mut desc_ver = 0;
 
-    unsafe {
-
-        let mut mmap_size = core::mem::size_of_val(&mmap);
-        let mut desc_size = 0;
-        let mut desc_ver = 0;
-
-        let ret = ((*(*st).boot_services).get_memory_map)(
+    let ret = unsafe {
+        ((*(*st).boot_services).get_memory_map)(
             &mut mmap_size,
             mmap.as_mut_ptr(),
             &mut map_key,
             &mut desc_size,
-            &mut desc_ver
-        );
+            &mut desc_ver,
+        )
+    };
+    assert!(ret.0 == 0, "{:x?}", ret);
 
-        assert!(ret.0 == 0, "{:x?}", ret);
-
-        // walk through buffer, by the size of a memory descriptor
-        for offset in (0..desc_size).step_by(desc_size) {
-
-            let entry = core::ptr::read_unaligned(
-                mmap[offset..].as_ptr() as *const EfiMemoryDescriptor);
-            let r#type: EfiMemoryType = entry.typ.into();
-            if r#type.available_post_brexit() {
-                free_memory += entry.number_of_pages * EFI_PAGE_SIZE;
-            }
-            println!("{:016x}, {:016x} KiB {:?}", 
-                     entry.physical_start, 
-                     (entry.number_of_pages * EFI_PAGE_SIZE) / 1024, 
-                     r#type);
-
+    // walk through buffer, by the size of a memory descriptor
+    for offset in (0..mmap_size).step_by(desc_size) {
+        // NOTE: we are unable to print out any of this
+        // information since after `get_memory_map` is called, we cannot use
+        // any of the handles in the system table (console_out is used to print
+        // pre-boot)
+        //
+        let entry = unsafe {
+            core::ptr::read_unaligned(mmap[offset..].as_ptr() as *const EfiMemoryDescriptor)
+        };
+        let r#type: EfiMemoryType = entry.typ.into();
+        if r#type.available_post_brexit() {
+            free_memory += entry.number_of_pages * EFI_PAGE_SIZE;
         }
     }
-    println!("Total free {:016x} KiB", free_memory / 1024);
 
-    Some(map_key)
+    // Exit and check success
+    let res = unsafe { 
+        ((*(*st).boot_services).exit_boot_services)(handle, map_key) 
+    };
+    assert!(res.0 == 0, "failed to exit boot services {:x?}", res);
+
+    // destroy the EFI system table
+    EFI_SYSTEM_TABLE.store(core::ptr::null_mut(), Ordering::SeqCst);
+
+    free_memory
 }
