@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(asm, abi_efiapi)]
+#![feature(asm, abi_efiapi, llvm_asm)]
 #![feature(panic_info_message)]
 #[doc(hidden)]
 mod core_fns;

@@ -4,12 +4,13 @@ pub struct Port {
 }
 
 impl Port {
-    pub unsafe fn new(bios_base: *const u16) -> Self {
+    pub fn new(bios_base: *const u16) -> Self {
         let mut ret = Port {
             devices: [None; 4],
         };
         for (i, dev) in ret.devices.iter_mut().enumerate() {
-            let port = *bios_base.offset(i as isize);
+            let port = unsafe {*bios_base.offset(i as isize) };
+
 
             // If port address is zero, it is being reported as 
             // not present by the BIOS
@@ -18,6 +19,7 @@ impl Port {
                 continue;
             }
 
+            unsafe {
             // Initialize the serial port to a known state
             outb(port + 1, 0x00); // Disable all interrupts
             outb(port + 3, 0x80); // Enable DLAB
@@ -25,6 +27,7 @@ impl Port {
             outb(port + 1, 0x00); // High byte divisor
             outb(port + 3, 0x03); // 8 bits, 1 stop bit, no parity
             outb(port + 4, 0x03); // RTS/DSR set
+            }
             *dev = Some(port)
         }
         ret
@@ -85,11 +88,14 @@ impl Port {
     
 }
 
+#[allow(deprecated)]
 #[inline]
 pub unsafe fn outb(addr: u16, val: u8) {
-    asm!("out {0}, al", in(reg) addr as usize, in("al") val);
+    llvm_asm!("out dx, al" :: "{dx}"(addr), "{al}"(val) :: "volatile", "intel");
 }
 
+
+#[allow(deprecated)]
 #[inline]
 pub unsafe fn inb(addr: u16) -> u8 {
     let val: u8;
