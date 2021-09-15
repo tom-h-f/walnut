@@ -33,7 +33,7 @@ script = '''
   -nodefaults \
   -vga std \
   -machine q35,accel=kvm:tcg \
-  -m 512M     \
+  -m 128M \
   -drive if=pflash,format=raw,readonly,file=/usr/share/ovmf/OVMF.fd \
   -drive format=raw,file=fat:rw:./target/ \
   -serial stdio \
