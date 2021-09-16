@@ -1,19 +1,23 @@
 #![no_std]
 #![no_main]
-#![feature(asm, abi_efiapi, llvm_asm)]
+#![feature(asm, abi_efiapi, llvm_asm, bool_to_option)]
 #![feature(panic_info_message)]
 #[doc(hidden)]
 mod core_fns;
 #[doc(hidden)]
 mod efi;
 pub mod serial;
+pub mod acpi;
+pub mod mm;
+pub mod cpu;
+pub mod register;
 
 use efi::{EfiHandle, EfiStatus, EfiSystemTable};
 
 
 pub fn kmain() {
-
-
+    dump_state!();
+    
     panic!("reached end of kmain()");
 }
 
