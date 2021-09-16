@@ -1,4 +1,19 @@
+#[allow(dead_code)]
 const EFI_PAGE_SIZE: u64 = 4096;
+#[allow(dead_code)]
+const EFI_SUCCESS: EfiStatus = EfiStatus(0x8000000000000000);
+const EFI_ACPI_TABLE_GUID: EfiGuid = EfiGuid (
+    0x8868e871, 
+    0xe4f1, 
+    0x11d3, 
+    [0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81]
+);
+
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(C)]
+pub struct EfiGuid (u32, u16, u16, [u8; 8]);
+
 
 /// Collection fo related interfaces
 /// Type: `void *`
@@ -12,7 +27,6 @@ pub struct EfiHandle(usize);
 #[repr(C)]
 pub struct EfiStatus(pub usize);
 
-const EFI_SUCCESS: EfiStatus = EfiStatus(0x8000000000000000);
 
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
@@ -82,6 +96,52 @@ struct EfiBootServices {
 }
 
 #[repr(C)]
+struct EfiSimpleTextInputProtocol {
+    /// Resets the input device hardware.
+    reset: unsafe fn(
+        this: *const EfiSimpleTextInputProtocol,
+        extended_verification: bool,
+    ) -> EfiStatus,
+    /// Reads the next keystroke from the input device.
+    read_keystroke:
+        unsafe fn(this: *const EfiSimpleTextInputProtocol, key: *mut EfiInputKey) -> EfiStatus,
+    /// Event to use with EFI_BOOT_SERVICES.WaitForEvent() to wait for a key to
+    /// be available
+    _wait_for_key: usize,
+}
+#[repr(C)]
+struct EfiSimpleTextOutputProtocol {
+    /// Resets the output device hardware.
+    reset: unsafe fn(
+        this: *const EfiSimpleTextOutputProtocol,
+        extended_verification: bool,
+    ) -> EfiStatus,
+    /// Writes a string to the device.
+    output_string:
+        unsafe fn(this: *const EfiSimpleTextOutputProtocol, string: *const u16) -> EfiStatus,
+    /// Verifies that all chars in a string can be output
+    /// to the target device.
+    test_string:
+        unsafe fn(this: *const EfiSimpleTextOutputProtocol, string: *const u16) -> EfiStatus,
+    /// Returns information for an available text mode that the output
+    /// device(s) supports.
+    _query_mode: usize,
+
+    /// Sets the output device(s) to a specified mode.
+    _set_mode: usize,
+
+    _set_attribute: usize,
+
+    _clear_screen: usize,
+
+    _set_cursor_position: usize,
+
+    _enable_cursor: usize,
+
+    _mode: usize,
+}
+
+#[repr(C)]
 pub struct EfiSystemTable {
     header: EfiTableHeader,
 
@@ -91,21 +151,30 @@ pub struct EfiSystemTable {
 
     console_in_handle: EfiHandle,
 
-    console_in: usize,
+    console_in: *const EfiSimpleTextInputProtocol,
 
     console_out_handle: EfiHandle,
 
-    console_out: usize,
+    console_out: *const EfiSimpleTextOutputProtocol,
 
     console_err_handle: EfiHandle,
 
-    console_err: usize,
+    console_err: *const EfiSimpleTextOutputProtocol,
 
     _runtime_services: usize,
 
     boot_services: *const EfiBootServices,
-    _number_of_table_entries: usize,
-    _configuration_table: usize,
+    _number_of_tables: usize,
+    tables: *const EfiConfigurationTable,
+}
+
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct EfiConfigurationTable {
+    guid: EfiGuid,
+    /// a pointer ot the `VendorTable`
+    table: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -117,6 +186,7 @@ pub enum EfiMemoryType {
     LoaderCode = 1,
     /// The data portions of a loaded UEFI applications,
     /// as well as any memory allocated by it.
+    #[allow(dead_code)]
     LoaderData = 2,
     /// Code of the boot drivers.
     ///
@@ -187,11 +257,103 @@ impl EfiMemoryType {
     }
 }
 
+#[macro_use]
+pub mod print {
+    use core::fmt::{Result, Write};
+
+pub struct ScreenWriter;
+
+impl Write for ScreenWriter {
+    fn write_str(&mut self, string: &str) -> Result {
+        crate::efi::output_string(string);
+        Ok(())
+    }
+}
+
+pub fn _print(args: core::fmt::Arguments) {
+    <ScreenWriter as core::fmt::Write>::write_fmt(&mut ScreenWriter, args).unwrap();
+}
+
+/// The standard Rust `print!()` macro
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::efi::print::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+}
+use core::sync::atomic::{AtomicPtr, Ordering};
+
+/// Global EFI system table which is saved upon entry of the kernel.
+static EFI_SYSTEM_TABLE: AtomicPtr<EfiSystemTable> = AtomicPtr::new(core::ptr::null_mut());
+
+pub unsafe fn register_system_table(system_table: *mut EfiSystemTable) {
+    EFI_SYSTEM_TABLE
+        .compare_exchange(
+            core::ptr::null_mut(),
+            system_table,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        )
+        .unwrap();
+}
+
+pub fn output_string(string: &str) {
+    // get the system table
+    let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
+
+    if st.is_null() {
+        return;
+    }
+
+    let out = unsafe { (*st).console_out };
+
+    let mut tmp = [0u16; 32];
+    let mut in_use = 0;
+
+    // note that UEFI uses UCS-2 not UTF-16 so don't have to worry about
+    // 32-bit code points
+    for c in string.encode_utf16() {
+        // inject CR if needed. We always make sure there's room
+        // for one based on the way we check the buffer len (-2 instead of -1)
+        if c == b'\n' as u16 {
+            tmp[in_use] = b'\r' as u16;
+            in_use += 1;
+        }
+
+        // write a char into the buffer
+        tmp[in_use] = c;
+        in_use += 1;
+
+        if in_use == (tmp.len() - 2) {
+            // null terminate the buffer
+            tmp[in_use] = 0;
+
+            unsafe {
+                ((*out).output_string)(out, tmp.as_ptr());
+            }
+
+            in_use = 0;
+        }
+    }
+
+    if in_use > 0 {
+        tmp[in_use] = 0;
+        unsafe {
+            ((*out).output_string)(out, tmp.as_ptr());
+        }
+    }
+}
 
 /// Gets the current memory map from the global `EFI_SYSTEM_TABLE`
 /// retreives the memory map key, then uses that aswell as the `handle`
 /// parameter to exit UEFI boot services.
-pub fn exit_boot_services(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
+pub fn exit_boot_services(handle: EfiHandle) -> u64 {
+    let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     if st.is_null() {
         panic!("unable to retreive EFI_SYSTEM_TABLE");
     }
@@ -216,6 +378,8 @@ pub fn exit_boot_services(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
     };
     assert!(ret.0 == 0, "{:x?}", ret);
 
+    println!("Memory Map: \n{:016} {:016} Memory Type", "Physical Address", "Size");
+
     // walk through buffer, by the size of a memory descriptor
     for offset in (0..mmap_size).step_by(desc_size) {
         // NOTE: we are unable to print out any of this
@@ -230,13 +394,20 @@ pub fn exit_boot_services(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
         if r#type.available_post_brexit() {
             free_memory += entry.number_of_pages * EFI_PAGE_SIZE;
         }
+        println!("{:016X} {:016X} {:?}", 
+                 entry.physical_start, 
+                 entry.number_of_pages * EFI_PAGE_SIZE, 
+                 r#type);
     }
+    println!("Total Memory Free: {} MiB", (free_memory / 1024) /1024);
 
     // Exit and check success
     let res = unsafe { 
         ((*(*st).boot_services).exit_boot_services)(handle, map_key) 
     };
     assert!(res.0 == 0, "failed to exit boot services {:x?}", res);
+    // destroy the EFI system table
+    EFI_SYSTEM_TABLE.store(core::ptr::null_mut(), Ordering::SeqCst);
 
     free_memory
 }
@@ -247,10 +418,37 @@ pub fn exit_boot_services(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
 pub extern "efiapi" fn efi_main(_handle: EfiHandle, 
                                 st: *mut EfiSystemTable) -> EfiStatus {
     unsafe {
-        exit_boot_services(_handle, st);
+        register_system_table(st);
+        get_acpi_base();
+        //exit_boot_services(_handle);
     }
 
 
     crate::kmain();
     unreachable!();
+}
+
+
+pub fn get_acpi_base() {
+
+    let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
+    if st.is_null() {
+        panic!("unable to retreive EFI_SYSTEM_TABLE");
+    }
+
+
+    let tables = unsafe {
+        core::slice::from_raw_parts(
+            (*st).tables,
+            (*st)._number_of_tables
+            )
+    };
+
+    let acpi = tables.iter().find_map(|EfiConfigurationTable{ guid, table}| {
+        (guid == &EFI_ACPI_TABLE_GUID).then_some(*table)
+    });
+
+    println!("ACPI Table at {:#x?} {:#x?}", acpi, 
+             unsafe { core::ptr::read_unaligned(acpi.unwrap() as *const u64) });
+
 }
