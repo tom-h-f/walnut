@@ -1,4 +1,20 @@
+#[allow(dead_code)]
 const EFI_PAGE_SIZE: u64 = 4096;
+#[allow(dead_code)]
+const EFI_SUCCESS: EfiStatus = EfiStatus(0x8000000000000000);
+const EFI_ACPI_TABLE_GUID: EfiGuid = EfiGuid (
+    0x8868e871, 
+    0xe4f1, 
+    0x11d3, 
+    [0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81]
+);
+
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(C)]
+pub struct EfiGuid (u32, u16, u16, [u8; 8]);
+
+
 /// Collection fo related interfaces
 /// Type: `void *`
 #[derive(Clone, Copy, Debug)]
@@ -11,7 +27,6 @@ pub struct EfiHandle(usize);
 #[repr(C)]
 pub struct EfiStatus(pub usize);
 
-const EFI_SUCCESS: EfiStatus = EfiStatus(0x8000000000000000);
 
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
@@ -79,6 +94,7 @@ struct EfiBootServices {
     _unload_image: usize,
     exit_boot_services: unsafe fn(image_handle: EfiHandle, map_key: usize) -> EfiStatus,
 }
+
 #[repr(C)]
 struct EfiSimpleTextInputProtocol {
     /// Resets the input device hardware.
@@ -148,8 +164,17 @@ pub struct EfiSystemTable {
     _runtime_services: usize,
 
     boot_services: *const EfiBootServices,
-    _number_of_table_entries: usize,
-    _configuration_table: usize,
+    _number_of_tables: usize,
+    tables: *const EfiConfigurationTable,
+}
+
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct EfiConfigurationTable {
+    guid: EfiGuid,
+    /// a pointer ot the `VendorTable`
+    table: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -161,6 +186,7 @@ pub enum EfiMemoryType {
     LoaderCode = 1,
     /// The data portions of a loaded UEFI applications,
     /// as well as any memory allocated by it.
+    #[allow(dead_code)]
     LoaderData = 2,
     /// Code of the boot drivers.
     ///
@@ -231,6 +257,35 @@ impl EfiMemoryType {
     }
 }
 
+#[macro_use]
+pub mod print {
+    use core::fmt::{Result, Write};
+
+pub struct ScreenWriter;
+
+impl Write for ScreenWriter {
+    fn write_str(&mut self, string: &str) -> Result {
+        crate::efi::output_string(string);
+        Ok(())
+    }
+}
+
+pub fn _print(args: core::fmt::Arguments) {
+    <ScreenWriter as core::fmt::Write>::write_fmt(&mut ScreenWriter, args).unwrap();
+}
+
+/// The standard Rust `print!()` macro
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::efi::print::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+}
 use core::sync::atomic::{AtomicPtr, Ordering};
 
 /// Global EFI system table which is saved upon entry of the kernel.
@@ -323,6 +378,8 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
     };
     assert!(ret.0 == 0, "{:x?}", ret);
 
+    println!("Memory Map: \n{:016} {:016} Memory Type", "Physical Address", "Size");
+
     // walk through buffer, by the size of a memory descriptor
     for offset in (0..mmap_size).step_by(desc_size) {
         // NOTE: we are unable to print out any of this
@@ -337,16 +394,61 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
         if r#type.available_post_brexit() {
             free_memory += entry.number_of_pages * EFI_PAGE_SIZE;
         }
+        println!("{:016X} {:016X} {:?}", 
+                 entry.physical_start, 
+                 entry.number_of_pages * EFI_PAGE_SIZE, 
+                 r#type);
     }
+    println!("Total Memory Free: {} MiB", (free_memory / 1024) /1024);
 
     // Exit and check success
     let res = unsafe { 
         ((*(*st).boot_services).exit_boot_services)(handle, map_key) 
     };
     assert!(res.0 == 0, "failed to exit boot services {:x?}", res);
-
     // destroy the EFI system table
     EFI_SYSTEM_TABLE.store(core::ptr::null_mut(), Ordering::SeqCst);
 
     free_memory
+}
+
+
+/// The entry point of the binary.
+#[no_mangle]
+pub extern "efiapi" fn efi_main(_handle: EfiHandle, 
+                                st: *mut EfiSystemTable) -> EfiStatus {
+    unsafe {
+        register_system_table(st);
+        get_acpi_base();
+        //exit_boot_services(_handle);
+    }
+
+
+    crate::kmain();
+    unreachable!();
+}
+
+
+pub fn get_acpi_base() {
+
+    let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
+    if st.is_null() {
+        panic!("unable to retreive EFI_SYSTEM_TABLE");
+    }
+
+
+    let tables = unsafe {
+        core::slice::from_raw_parts(
+            (*st).tables,
+            (*st)._number_of_tables
+            )
+    };
+
+    let acpi = tables.iter().find_map(|EfiConfigurationTable{ guid, table}| {
+        (guid == &EFI_ACPI_TABLE_GUID).then_some(*table)
+    });
+
+    println!("ACPI Table at {:#x?} {:#x?}", acpi, 
+             unsafe { core::ptr::read_unaligned(acpi.unwrap() as *const u64) });
+
 }
