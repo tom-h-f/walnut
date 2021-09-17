@@ -2,18 +2,10 @@
 const EFI_PAGE_SIZE: u64 = 4096;
 #[allow(dead_code)]
 const EFI_SUCCESS: EfiStatus = EfiStatus(0x8000000000000000);
-const EFI_ACPI_TABLE_GUID: EfiGuid = EfiGuid (
-    0x8868e871, 
-    0xe4f1, 
-    0x11d3, 
-    [0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81]
-);
-
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
-pub struct EfiGuid (u32, u16, u16, [u8; 8]);
-
+pub struct EfiGuid(u32, u16, u16, [u8; 8]);
 
 /// Collection fo related interfaces
 /// Type: `void *`
@@ -26,7 +18,6 @@ pub struct EfiHandle(usize);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct EfiStatus(pub usize);
-
 
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
@@ -168,7 +159,6 @@ pub struct EfiSystemTable {
     tables: *const EfiConfigurationTable,
 }
 
-
 #[derive(Debug)]
 #[repr(C)]
 pub struct EfiConfigurationTable {
@@ -261,27 +251,27 @@ impl EfiMemoryType {
 pub mod print {
     use core::fmt::{Result, Write};
 
-pub struct ScreenWriter;
+    pub struct ScreenWriter;
 
-impl Write for ScreenWriter {
-    fn write_str(&mut self, string: &str) -> Result {
-        crate::efi::output_string(string);
-        Ok(())
+    impl Write for ScreenWriter {
+        fn write_str(&mut self, string: &str) -> Result {
+            crate::efi::output_string(string);
+            Ok(())
+        }
     }
-}
 
-pub fn _print(args: core::fmt::Arguments) {
-    <ScreenWriter as core::fmt::Write>::write_fmt(&mut ScreenWriter, args).unwrap();
-}
+    pub fn _print(args: core::fmt::Arguments) {
+        <ScreenWriter as core::fmt::Write>::write_fmt(&mut ScreenWriter, args).unwrap();
+    }
 
-/// The standard Rust `print!()` macro
-#[macro_export]
-macro_rules! print {
+    /// The standard Rust `print!()` macro
+    #[macro_export]
+    macro_rules! print {
     ($($arg:tt)*) => ($crate::efi::print::_print(format_args!($($arg)*)));
 }
 
-#[macro_export]
-macro_rules! println {
+    #[macro_export]
+    macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
@@ -378,7 +368,10 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
     };
     assert!(ret.0 == 0, "{:x?}", ret);
 
-    println!("Memory Map: \n{:016} {:016} Memory Type", "Physical Address", "Size");
+    println!(
+        "Memory Map: \n{:016} {:016} Memory Type",
+        "Physical Address", "Size"
+    );
 
     // walk through buffer, by the size of a memory descriptor
     for offset in (0..mmap_size).step_by(desc_size) {
@@ -394,17 +387,18 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
         if r#type.available_post_brexit() {
             free_memory += entry.number_of_pages * EFI_PAGE_SIZE;
         }
-        println!("{:016X} {:016X} {:?}", 
-                 entry.physical_start, 
-                 entry.number_of_pages * EFI_PAGE_SIZE, 
-                 r#type);
+        println!(
+            "{:016X} {:016X} {:?}",
+            entry.physical_start,
+            entry.number_of_pages * EFI_PAGE_SIZE,
+            r#type
+        );
     }
-    println!("Total Memory Free: {} MiB", (free_memory / 1024) /1024);
+    println!("Total Memory Free: {} MiB", (free_memory / 1024) / 1024);
 
     // Exit and check success
-    let res = unsafe { 
-        ((*(*st).boot_services).exit_boot_services)(handle, map_key) 
-    };
+    let res = unsafe { ((*(*st).boot_services).exit_boot_services)(handle, map_key) };
+
     assert!(res.0 == 0, "failed to exit boot services {:x?}", res);
     // destroy the EFI system table
     EFI_SYSTEM_TABLE.store(core::ptr::null_mut(), Ordering::SeqCst);
@@ -412,43 +406,64 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
     free_memory
 }
 
-
+use crate::acpi;
 /// The entry point of the binary.
 #[no_mangle]
-pub extern "efiapi" fn efi_main(_handle: EfiHandle, 
-                                st: *mut EfiSystemTable) -> EfiStatus {
+pub extern "efiapi" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus {
     unsafe {
         register_system_table(st);
-        get_acpi_base();
+        acpi::init().expect("Failed to initalize ACPI");
         //exit_boot_services(_handle);
     }
-
 
     crate::kmain();
     unreachable!();
 }
 
-
-pub fn get_acpi_base() {
+use crate::mm::PhysAddr;
+pub fn get_acpi_table() -> Option<PhysAddr> {
+    // ACPI 2.0 GUID
+    const EFI_ACPI_TABLE_GUID: EfiGuid = EfiGuid(
+        0x8868e871,
+        0xe4f1,
+        0x11d3,
+        [0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81],
+    );
+    // ACPI 1.0 GUID
+    const ACPI_TABLE_GUID: EfiGuid = EfiGuid(
+        0xeb9d2d30,
+        0x2d88,
+        0x11d3,
+        [0x9a, 0x16, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d],
+    );
 
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     if st.is_null() {
         panic!("unable to retreive EFI_SYSTEM_TABLE");
     }
 
+    let tables = unsafe { core::slice::from_raw_parts((*st).tables, (*st)._number_of_tables) };
 
-    let tables = unsafe {
-        core::slice::from_raw_parts(
-            (*st).tables,
-            (*st)._number_of_tables
-            )
-    };
-
-    let acpi = tables.iter().find_map(|EfiConfigurationTable{ guid, table}| {
-        (guid == &EFI_ACPI_TABLE_GUID).then_some(*table)
-    });
-
-    println!("ACPI Table at {:#x?} {:#x?}", acpi, 
-             unsafe { core::ptr::read_unaligned(acpi.unwrap() as *const u64) });
-
+    // Attempt to find the table with the ACPI 2.0 GUID, if can't find
+    // attempt to find table with ACPI 1.0 GUID.
+    if let Some(acpi) = tables
+        .iter()
+        .find_map(|EfiConfigurationTable { guid, table }| {
+            (guid == &EFI_ACPI_TABLE_GUID).then_some(*table)
+        })
+        .or_else(|| {
+            tables
+                .iter()
+                .find_map(|EfiConfigurationTable { guid, table }| {
+                    (guid == &ACPI_TABLE_GUID).then_some(*table)
+                })
+        })
+    {
+        println!("ACPI Table at {:#x?} {:#x?}", acpi, unsafe {
+            core::ptr::read_unaligned(acpi as *const u64)
+        });
+        Some(PhysAddr(acpi))
+    } else {
+        None
+    }
 }
