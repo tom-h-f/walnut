@@ -34,9 +34,10 @@ script = '''
   -vga std \
   -machine q35,accel=kvm:tcg \
   -m 128M \
-  -drive if=pflash,format=raw,readonly,file=/usr/share/ovmf/OVMF.fd \
+  -drive if=pflash,format=raw,readonly=true,file=/usr/share/ovmf/OVMF.fd \
   -drive format=raw,file=fat:rw:./target/ \
   -serial stdio \
+  -smp 4 \
   -nographic
 '''
 dependencies = ["b"]
