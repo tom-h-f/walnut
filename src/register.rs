@@ -28,7 +28,7 @@ pub struct SysState {
     r13: u64,
     r14: u64,
     r15: u64,
-    rflags: RFlags
+    rflags: RFlags,
 }
 
 impl SysState {
@@ -55,7 +55,6 @@ impl SysState {
     }
 }
 
-
 /// Reads `T` from register `name`. If unable to read for whatever reason,
 /// returns `None`, otherwise `Some(T)`
 ///
@@ -67,83 +66,83 @@ pub fn read(name: &str) -> Option<u64> {
                 let val: u64;
                 asm!("mov {0}, rax", out(reg) val);
                 Some(val)
-            },
+            }
             "rbx" => {
                 let val: u64;
                 asm!("mov {0}, rbx", out(reg) val);
                 Some(val)
-            },
+            }
             "rcx" => {
                 let val: u64;
                 asm!("mov {0}, rcx", out(reg) val);
                 Some(val)
-            },
+            }
             "rdx" => {
                 let val: u64;
                 asm!("mov {0}, rdx", out(reg) val);
                 Some(val)
-            },
+            }
             "rsi" => {
                 let val: u64;
                 asm!("mov {0}, rsi", out(reg) val);
                 Some(val)
-            },
+            }
             "rdi" => {
                 let val: u64;
                 asm!("mov {0}, rdi", out(reg) val);
                 Some(val)
-            },
+            }
             "rsp" => {
                 let val: u64;
                 asm!("mov {0}, rsp", out(reg) val);
                 Some(val)
-            },
+            }
             "rbp" => {
                 let val: u64;
                 asm!("mov {0}, rbp", out(reg) val);
                 Some(val)
-            },
+            }
             "r8" => {
                 let val: u64;
                 asm!("mov {0}, r8", out(reg) val);
                 Some(val)
-            },
+            }
             "r9" => {
                 let val: u64;
                 asm!("mov {0}, r9", out(reg) val);
                 Some(val)
-            },
+            }
             "r10" => {
                 let val: u64;
                 asm!("mov {0}, r10", out(reg) val);
                 Some(val)
-            },
+            }
             "r11" => {
                 let val: u64;
                 asm!("mov {0}, r11", out(reg) val);
                 Some(val)
-            },
+            }
             "r12" => {
                 let val: u64;
                 asm!("mov {0}, r12", out(reg) val);
                 Some(val)
-            },
+            }
             "r13" => {
                 let val: u64;
                 asm!("mov {0}, r13", out(reg) val);
                 Some(val)
-            },
+            }
             "r14" => {
                 let val: u64;
                 asm!("mov {0}, r14", out(reg) val);
                 Some(val)
-            },
+            }
             "r15" => {
                 let val: u64;
                 asm!("mov {0}, r15", out(reg) val);
                 Some(val)
-            },
-            _ => None
+            }
+            _ => None,
         }
     }
 }
@@ -207,10 +206,7 @@ bitflags! {
     }
 }
 
-
-
 impl RFlags {
-
     /// Returns the current value of the RFLAGS register.
     ///
     /// Drops any unknown bits.
@@ -223,9 +219,9 @@ impl RFlags {
         let r: u64;
         unsafe {
             asm!("pushfq",
-                 "pop {0}",
-                 out(reg) r
-                 );
+            "pop {0}",
+            out(reg) r
+            );
         };
         r
     }
@@ -243,7 +239,7 @@ impl RFlags {
     ///
     /// Does not preserve any bits, including reserved bits.
     pub fn write_raw(val: u64) {
-        unsafe { 
+        unsafe {
             asm!(
                 "pushq {0}",
                 "popf",
@@ -252,4 +248,3 @@ impl RFlags {
         };
     }
 }
-

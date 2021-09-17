@@ -1,18 +1,15 @@
 #[repr(C)]
 pub struct Port {
-   pub devices: [Option<u16>; 4],
+    pub devices: [Option<u16>; 4],
 }
 
 impl Port {
     pub fn new(bios_base: *const u16) -> Self {
-        let mut ret = Port {
-            devices: [None; 4],
-        };
+        let mut ret = Port { devices: [None; 4] };
         for (i, dev) in ret.devices.iter_mut().enumerate() {
-            let port = unsafe {*bios_base.offset(i as isize) };
+            let port = unsafe { *bios_base.offset(i as isize) };
 
-
-            // If port address is zero, it is being reported as 
+            // If port address is zero, it is being reported as
             // not present by the BIOS
             if port == 0 {
                 *dev = None;
@@ -20,20 +17,20 @@ impl Port {
             }
 
             unsafe {
-            // Initialize the serial port to a known state
-            outb(port + 1, 0x00); // Disable all interrupts
-            outb(port + 3, 0x80); // Enable DLAB
-            outb(port + 0, 0x01); // Low byte divisor (115200 baud)
-            outb(port + 1, 0x00); // High byte divisor
-            outb(port + 3, 0x03); // 8 bits, 1 stop bit, no parity
-            outb(port + 4, 0x03); // RTS/DSR set
+                // Initialize the serial port to a known state
+                outb(port + 1, 0x00); // Disable all interrupts
+                outb(port + 3, 0x80); // Enable DLAB
+                outb(port + 0, 0x01); // Low byte divisor (115200 baud)
+                outb(port + 1, 0x00); // High byte divisor
+                outb(port + 3, 0x03); // 8 bits, 1 stop bit, no parity
+                outb(port + 4, 0x03); // RTS/DSR set
             }
             *dev = Some(port)
         }
         ret
     }
-    
-     /// Read a byte from whatever COM port has a byte available
+
+    /// Read a byte from whatever COM port has a byte available
     pub fn read_byte(&mut self) -> Option<u8> {
         // Go through each device
         for port in &self.devices {
@@ -59,7 +56,9 @@ impl Port {
     /// Write a byte to a COM port
     fn write_byte(&mut self, port: usize, byte: u8) {
         // Write a CR prior to all LFs
-        if byte == b'\n' { self.write_byte(port, b'\r'); }
+        if byte == b'\n' {
+            self.write_byte(port, b'\r');
+        }
 
         // Check if this COM port exists
         if let Some(&Some(port)) = self.devices.get(port) {
@@ -83,9 +82,6 @@ impl Port {
             }
         }
     }
-
-
-    
 }
 
 #[allow(deprecated)]
@@ -94,7 +90,6 @@ pub unsafe fn outb(addr: u16, val: u8) {
     llvm_asm!("out dx, al" :: "{dx}"(addr), "{al}"(val) :: "volatile", "intel");
 }
 
-
 #[allow(deprecated)]
 #[inline]
 pub unsafe fn inb(addr: u16) -> u8 {
@@ -102,4 +97,3 @@ pub unsafe fn inb(addr: u16) -> u8 {
     llvm_asm!("in al, dx" : "={al}"(val) : "{dx}"(addr) :: "volatile", "intel");
     val
 }
-
