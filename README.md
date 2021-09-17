@@ -12,7 +12,7 @@ Currently only plan to support UEFI OS's, which, along with Rust brilliant cross
 
 ## Blockers
 
-- Unable to write to output via serial, going to parse ACPI table as per https://youtu.be/2YAgDJTs9So?t=13247 and then launch out of UEFI space so we can maintain output and ensure easier debugging during boot process.
+- Unable to write to output via serial, going to parse ACPI table as per https://youtu.be/2YAgDJTs9So?t=25090 and then launch out of UEFI space so we can maintain output and ensure easier debugging during boot process.
 
 ## Roadmap
 
