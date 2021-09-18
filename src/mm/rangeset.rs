@@ -15,7 +15,7 @@ pub struct Range {
 }
 
 /// A set of non-overlapping inclusive `u64` ranges
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct RangeSet {
     /// Fixed array of ranges in the set

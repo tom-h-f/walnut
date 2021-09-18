@@ -142,7 +142,6 @@ impl Table {
                 .ok_or(Error::IntegerOverflow)?,
         );
 
-        efi_println!("{:?} : {:#x?}", r#type, table);
 
         Ok((table, r#type, payload_addr, payload_size))
     }
