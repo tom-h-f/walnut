@@ -13,10 +13,10 @@ pub mod mm;
 pub mod register;
 pub mod serial;
 
-use efi::{EfiHandle, EfiStatus, EfiSystemTable};
 
 pub fn kmain() {
     dump_state!();
+    serial_println!("Welcome to Walnut!");
 
     panic!("reached end of kmain()");
 }
