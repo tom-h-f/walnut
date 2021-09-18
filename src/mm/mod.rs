@@ -1,5 +1,7 @@
 //! Various memory management and CPU state mangement functions and macros.
 
+pub mod rangeset;
+
 use core::mem::size_of;
 
 /// Represents a physical address
