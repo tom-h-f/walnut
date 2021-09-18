@@ -1,4 +1,4 @@
-use crate::{println, mm::{self, PhysAddr}};
+use crate::{efi_println, mm::{self, PhysAddr}};
 use super::{
     Result, Error, Table, 
     TableType, LocalApic, LocalX2Apic, 
@@ -33,7 +33,7 @@ impl Madt {
                 .checked_sub(2)
                 .ok_or(E)?;
 
-            println!("{:#x} {}", typ, len);
+            efi_println!("{:#x} {}", typ, len);
 
             match typ {
                 LOCAL_APIC => {
@@ -43,7 +43,7 @@ impl Madt {
                     }
 
                     let apic = slice.consume::<LocalApic>().map_err(|_| E)?;
-                    println!("{:#x?}", apic);
+                    efi_println!("{:#x?}", apic);
                 }
                 X2_APIC => {
                     
@@ -53,7 +53,7 @@ impl Madt {
                     }
 
                     let apic = slice.consume::<LocalX2Apic>().map_err(|_| E)?;
-                    println!("{:#x?}", apic);
+                    efi_println!("{:#x?}", apic);
                 }
                 _ => {
                     slice.discard(len as usize).map_err(|_| E)?;
@@ -61,7 +61,7 @@ impl Madt {
             }
         }
 
-        println!("{:#x}", local_apic_addr);
+        efi_println!("{:#x}", local_apic_addr);
 
         Err(E)
     }

@@ -266,14 +266,14 @@ pub mod print {
 
     /// The standard Rust `print!()` macro
     #[macro_export]
-    macro_rules! print {
+    macro_rules! efi_print {
     ($($arg:tt)*) => ($crate::efi::print::_print(format_args!($($arg)*)));
 }
 
     #[macro_export]
-    macro_rules! println {
+    macro_rules! efi_println {
     () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::efi_print!("{}\n", format_args!($($arg)*)));
 }
 }
 use core::sync::atomic::{AtomicPtr, Ordering};
@@ -454,7 +454,7 @@ pub fn get_acpi_table() -> Option<PhysAddr> {
                 })
         })
     {
-        println!("ACPI Table at {:#x?} {:#x?}", acpi, unsafe {
+        efi_println!("ACPI Table at {:#x?} {:#x?}", acpi, unsafe {
             core::ptr::read_unaligned(acpi as *const u64)
         });
         Some(PhysAddr(acpi))

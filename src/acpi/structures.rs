@@ -1,5 +1,5 @@
 use crate::mm::{self, PhysAddr};
-use crate::println;
+use crate::efi_println;
 use core::mem::size_of;
 use core::fmt;
 
@@ -142,7 +142,7 @@ impl Table {
                 .ok_or(Error::IntegerOverflow)?,
         );
 
-        println!("{:?} : {:#x?}", r#type, table);
+        efi_println!("{:?} : {:#x?}", r#type, table);
 
         Ok((table, r#type, payload_addr, payload_size))
     }

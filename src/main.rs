@@ -16,7 +16,7 @@ pub mod serial;
 
 pub fn kmain() {
     dump_state!();
-    serial_println!("Welcome to Walnut!");
+    println!("Welcome to Walnut!");
 
     panic!("reached end of kmain()");
 }
