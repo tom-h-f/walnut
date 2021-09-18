@@ -343,6 +343,7 @@ pub fn output_string(string: &str) {
 /// retreives the memory map key, then uses that aswell as the `handle`
 /// parameter to exit UEFI boot services.
 pub fn exit_boot_services(handle: EfiHandle) -> u64 {
+
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     if st.is_null() {
         panic!("unable to retreive EFI_SYSTEM_TABLE");
@@ -367,11 +368,9 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
         )
     };
     assert!(ret.0 == 0, "{:x?}", ret);
+    // After we call get_memory_map we cannot perform any prints or the map_key will 
+    // cause the attempted exit to return `EFI_INVALID_PARAMETER`
 
-    println!(
-        "Memory Map: \n{:016} {:016} Memory Type",
-        "Physical Address", "Size"
-    );
 
     // walk through buffer, by the size of a memory descriptor
     for offset in (0..mmap_size).step_by(desc_size) {
@@ -387,14 +386,8 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
         if r#type.available_post_brexit() {
             free_memory += entry.number_of_pages * EFI_PAGE_SIZE;
         }
-        println!(
-            "{:016X} {:016X} {:?}",
-            entry.physical_start,
-            entry.number_of_pages * EFI_PAGE_SIZE,
-            r#type
-        );
+
     }
-    println!("Total Memory Free: {} MiB", (free_memory / 1024) / 1024);
 
     // Exit and check success
     let res = unsafe { ((*(*st).boot_services).exit_boot_services)(handle, map_key) };
@@ -413,7 +406,7 @@ pub extern "efiapi" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> 
     unsafe {
         register_system_table(st);
         acpi::init().expect("Failed to initalize ACPI");
-        //exit_boot_services(_handle);
+        exit_boot_services(_handle);
     }
 
     crate::kmain();
@@ -421,6 +414,8 @@ pub extern "efiapi" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> 
 }
 
 use crate::mm::PhysAddr;
+
+
 pub fn get_acpi_table() -> Option<PhysAddr> {
     // ACPI 2.0 GUID
     const EFI_ACPI_TABLE_GUID: EfiGuid = EfiGuid(
