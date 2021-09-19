@@ -22,11 +22,6 @@ Currently only plan to support UEFI OS's, which, along with Rust brilliant cross
 ```bash
 cargo make run
 ```
-
-## Blockers
-
-- Unable to write to output via serial, going to parse ACPI table as per https://www.youtube.com/watch?v=Pw1SiVF7wjU and then launch out of UEFI space so we can maintain output and ensure easier debugging during boot process.
-
 ## Roadmap
 
 - [ ] ACPI
