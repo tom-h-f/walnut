@@ -24,12 +24,12 @@ pub fn kmain() {
 
 #[panic_handler]
 fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
-    println!("!!! PANIC !!!");
+    efi_println!("!!! PANIC !!!");
     if let Some(loc) = _info.location() {
-        println!("Location: {}", loc);
+        efi_println!("Location: {}", loc);
     }
     if let Some(msg) = _info.message() {
-        println!("Message:  {}", msg);
+        efi_println!("Message:  {}", msg);
     }
     loop {}
 }

@@ -1,7 +1,7 @@
 use super::apic::{LocalApic, LocalX2Apic};
 use super::{Table, TableType, Error, Result};
 use crate::mm::{self, PhysAddr};
-use crate::println;
+use crate::efi_println;
 use core::mem::size_of;
 
 
@@ -30,7 +30,7 @@ impl Madt {
                 .checked_sub(2)
                 .ok_or(E)?;
 
-            println!("{:#x} {}", typ, len);
+            efi_println!("{:#x} {}", typ, len);
 
             match typ {
                 0 => {
@@ -40,7 +40,7 @@ impl Madt {
                     }
 
                     let apic = slice.consume::<LocalApic>().map_err(|_| E)?;
-                    println!("{:#x?}", apic);
+                    efi_println!("{:#x?}", apic);
                 }
                 9 => {
                     
@@ -50,7 +50,7 @@ impl Madt {
                     }
 
                     let apic = slice.consume::<LocalX2Apic>().map_err(|_| E)?;
-                    println!("{:#x?}", apic);
+                    efi_println!("{:#x?}", apic);
                 }
                 _ => {
                     slice.discard(len as usize).map_err(|_| E)?;
@@ -58,7 +58,7 @@ impl Madt {
             }
         }
 
-        println!("{:#x}", local_apic_addr);
+        efi_println!("{:#x}", local_apic_addr);
 
         panic!();
     }
