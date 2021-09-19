@@ -1,7 +1,6 @@
 use crate::mm::{self, PhysAddr};
-use core::mem::size_of;
 use core::fmt;
-
+use core::mem::size_of;
 
 pub mod apic;
 

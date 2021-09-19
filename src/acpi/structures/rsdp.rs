@@ -1,7 +1,6 @@
-use super::{compute_checksum, Result, Error, TableType};
+use super::{compute_checksum, Error, Result, TableType};
 use crate::mm::{self, PhysAddr};
 use core::mem::size_of;
-
 
 #[repr(C, packed)]
 pub struct Rsdp {

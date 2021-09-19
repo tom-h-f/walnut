@@ -110,7 +110,12 @@ impl Madt {
             }
         }
 
-        efi_println!("Found {} cores, IOAPIC: {:#X?}, LAPIC: {:#X?}", total_procs, local_apic_addr, io_apic_addr);
+        efi_println!(
+            "Found {} cores, IOAPIC: {:#X?}, LAPIC: {:#X?}",
+            total_procs,
+            local_apic_addr,
+            io_apic_addr
+        );
 
         Ok(ret)
     }

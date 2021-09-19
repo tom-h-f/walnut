@@ -2,16 +2,15 @@
 //! `u64` inclusive ranges. The `RangeSet` can be used to insert or remove
 //! ranges of `u64`s and thus is very useful for physical memory management.
 
-
 use core::cmp;
 
 /// An inclusive range. We do not use `RangeInclusive` as it does not implement
 /// `Copy`
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 pub struct Range {
     pub start: u64,
-    pub end:   u64,
+    pub end: u64,
 }
 
 impl Range {
@@ -33,7 +32,7 @@ pub struct RangeSet {
     /// This is not a usize to make the structure fixed size so we can pass it
     /// directly from protected mode to long mode. Since `ranges` is fixed u32
     /// is plenty large for this use.
-    in_use: u32,
+    pub in_use: u32,
 }
 
 use core::fmt;
@@ -74,7 +73,7 @@ impl RangeSet {
 
         // Copy the deleted range to the end of the list
         for ii in idx..self.in_use as usize - 1 {
-            self.ranges.swap(ii, ii+1);
+            self.ranges.swap(ii, ii + 1);
         }
 
         // Decrement the number of valid ranges
@@ -100,21 +99,24 @@ impl RangeSet {
                 // This is done so that two ranges that are 'touching' but
                 // not overlapping will be combined.
                 if overlaps(
-                        Range {
-                            start: range.start,
-                            end:   range.end.saturating_add(1),
-                        },
-                        Range {
-                            start: ent.start,
-                            end:   ent.end.saturating_add(1)
-                        }).is_none() {
+                    Range {
+                        start: range.start,
+                        end: range.end.saturating_add(1),
+                    },
+                    Range {
+                        start: ent.start,
+                        end: ent.end.saturating_add(1),
+                    },
+                )
+                .is_none()
+                {
                     continue;
                 }
 
                 // There was overlap with an existing range. Make this range
                 // a combination of the existing ranges.
                 range.start = cmp::min(range.start, ent.start);
-                range.end   = cmp::max(range.end,   ent.end);
+                range.end = cmp::max(range.end, ent.end);
 
                 // Delete the old range, as the new one is now all inclusive
                 self.delete(ii);
@@ -126,12 +128,27 @@ impl RangeSet {
             break;
         }
 
-        assert!((self.in_use as usize) < self.ranges.len(),
-            "Too many entries in RangeSet on insert");
+        assert!(
+            (self.in_use as usize) < self.ranges.len(),
+            "Too many entries in RangeSet on insert"
+        );
 
         // Add the new range to the end
         self.ranges[self.in_use as usize] = range;
         self.in_use += 1;
+    }
+    // Finds the `Range` in `self.ranges` the  with the largest size,
+    /// and returns its start address
+    pub fn largest(&self) -> Range {
+        let mut biggest = 0;
+        let mut best: Range = Range::default();
+        for r in self.entries() {
+            if r.size() > biggest {
+                biggest = r.size();
+                best = *r;
+            }
+        }
+        best
     }
 
     /// Remove `range` from the RangeSet
@@ -142,7 +159,7 @@ impl RangeSet {
     /// set.
     pub fn remove(&mut self, range: Range) {
         assert!(range.start <= range.end, "Invalid range shape");
-        
+
         'try_subtractions: loop {
             for ii in 0..self.in_use as usize {
                 let ent = self.ranges[ii];
@@ -180,12 +197,14 @@ impl RangeSet {
                     // we need to split it into two ranges.
                     self.ranges[ii].start = range.end.saturating_add(1);
 
-                    assert!((self.in_use as usize) < self.ranges.len(),
-                        "Too many entries in RangeSet on split");
+                    assert!(
+                        (self.in_use as usize) < self.ranges.len(),
+                        "Too many entries in RangeSet on split"
+                    );
 
                     self.ranges[self.in_use as usize] = Range {
                         start: ent.start,
-                        end:   range.start.saturating_sub(1),
+                        end: range.start.saturating_sub(1),
                     };
                     self.in_use += 1;
                     continue 'try_subtractions;
@@ -205,9 +224,9 @@ impl RangeSet {
 
     /// Compute the size of the range covered by this rangeset
     pub fn sum(&self) -> Option<u64> {
-        self.entries().iter().try_fold(0u64, |acc, x| {
-            Some(acc + (x.end - x.start).checked_add(1)?)
-        })
+        self.entries()
+            .iter()
+            .try_fold(0u64, |acc, x| Some(acc + (x.end - x.start).checked_add(1)?))
     }
 
     /// Allocate `size` bytes of memory with `align` requirement for alignment
@@ -221,8 +240,12 @@ impl RangeSet {
     /// satisfied from `regions` the allocation will come from whatever is next
     /// best. If `regions` is `None`, then the allocation will be satisfied
     /// from anywhere.
-    pub fn allocate_prefer(&mut self, size: u64, align: u64,
-                           regions: Option<&RangeSet>) -> Option<usize> {
+    pub fn allocate_prefer(
+        &mut self,
+        size: u64,
+        align: u64,
+        regions: Option<&RangeSet>,
+    ) -> Option<usize> {
         // Don't allow allocations of zero size
         if size == 0 {
             return None;
@@ -242,16 +265,15 @@ impl RangeSet {
             // Determine number of bytes required for front padding to satisfy
             // alignment requirements.
             let align_fix = (align - (ent.start & alignmask)) & alignmask;
-            
+
             // Compute base and end of allocation as an inclusive range
             // [base, end]
             let base = ent.start;
-            let end  = base.checked_add(size - 1)?.checked_add(align_fix)?;
+            let end = base.checked_add(size - 1)?.checked_add(align_fix)?;
 
             // Validate that this allocation is addressable in the current
             // processor state.
-            if base > core::usize::MAX as u64 ||
-                    end > core::usize::MAX as u64 {
+            if base > core::usize::MAX as u64 || end > core::usize::MAX as u64 {
                 continue;
             }
 
@@ -267,13 +289,12 @@ impl RangeSet {
                     if let Some(overlap) = overlaps(*ent, region) {
                         // Compute the rounded-up alignment from the
                         // overlapping region
-                        let align_overlap =
-                            (overlap.start.wrapping_add(alignmask)) &
-                            !alignmask;
+                        let align_overlap = (overlap.start.wrapping_add(alignmask)) & !alignmask;
 
-                        if align_overlap >= overlap.start &&
-                                align_overlap <= overlap.end &&
-                                (overlap.end - align_overlap) >= (size - 1) {
+                        if align_overlap >= overlap.start
+                            && align_overlap <= overlap.end
+                            && (overlap.end - align_overlap) >= (size - 1)
+                        {
                             // Alignment did not cause an overflow AND
                             // Alignment did not cause exceeding the end AND
                             // Amount of aligned overlap can satisfy the
@@ -282,19 +303,19 @@ impl RangeSet {
                             // Compute the inclusive end of this proposed
                             // allocation
                             let overlap_alc_end = align_overlap + (size - 1);
-                            
+
                             // Make sure the allocation fits in the current
                             // addressable address space
-                            if align_overlap > core::usize::MAX as u64 ||
-                                    overlap_alc_end > core::usize::MAX as u64 {
+                            if align_overlap > core::usize::MAX as u64
+                                || overlap_alc_end > core::usize::MAX as u64
+                            {
                                 continue 'allocation_search;
                             }
 
                             // We know the allocation can be satisfied starting
                             // at `align_overlap`
-                            allocation = Some((align_overlap,
-                                               overlap_alc_end,
-                                               align_overlap as usize));
+                            allocation =
+                                Some((align_overlap, overlap_alc_end, align_overlap as usize));
                             break 'allocation_search;
                         }
                     }
@@ -313,7 +334,7 @@ impl RangeSet {
         allocation.map(|(base, end, ptr)| {
             // Remove this range from the available set
             self.remove(Range { start: base, end });
-            
+
             // Return out the pointer!
             ptr
         })
@@ -346,7 +367,7 @@ fn overlaps(mut a: Range, mut b: Range) -> Option<Range> {
     if a.start <= b.end && b.start <= a.end {
         Some(Range {
             start: core::cmp::max(a.start, b.start),
-            end:   core::cmp::min(a.end,   b.end)
+            end: core::cmp::min(a.end, b.end),
         })
     } else {
         None
@@ -368,4 +389,3 @@ fn contains(mut a: Range, mut b: Range) -> bool {
 
     a.start >= b.start && a.end <= b.end
 }
-

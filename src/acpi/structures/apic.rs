@@ -1,13 +1,13 @@
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum ApicRecordType {
-    ProcessorLocalApic               = 0,
-    IoApic                           = 1,
-    IoApicInterruptSourceOverride    = 2,
+    ProcessorLocalApic = 0,
+    IoApic = 1,
+    IoApicInterruptSourceOverride = 2,
     IoApicNonMaskableInterruptSource = 3,
-    LocalApicNonMaskableInterrupts   = 4,
-    LocalApicAddressOverride         = 5,
-    ProcessorLocalX2Apic             = 9,
+    LocalApicNonMaskableInterrupts = 4,
+    LocalApicAddressOverride = 5,
+    ProcessorLocalX2Apic = 9,
     Unknown(u8),
 }
 
@@ -26,7 +26,6 @@ impl From<u8> for ApicRecordType {
     }
 }
 
-
 use bitflags::bitflags;
 bitflags! {
     pub struct LocalApicFlags: u32 {
@@ -43,13 +42,12 @@ bitflags! {
     }
 }
 
-
 /// We should get one of these for each core
-/// This type represents a I/O APIC. 
-/// The global system interrupt base is the first interrupt 
-/// number that this I/O APIC handles. 
-/// You can see how many interrupts it handles using 
-/// the register by getting the number of redirection 
+/// This type represents a I/O APIC.
+/// The global system interrupt base is the first interrupt
+/// number that this I/O APIC handles.
+/// You can see how many interrupts it handles using
+/// the register by getting the number of redirection
 /// entries from register 0x01
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
@@ -58,7 +56,6 @@ pub struct ProcessorLocalApic {
     pub apic_id: u8,
     pub flags: LocalApicFlags,
 }
-
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
@@ -69,7 +66,7 @@ pub struct IoApic {
     pub global_system_interrupt_base: u32,
 }
 
-/// This entry type contains the data for an Interrupt Source Override. This explains how IRQ sources are mapped to global system interrupts. 
+/// This entry type contains the data for an Interrupt Source Override. This explains how IRQ sources are mapped to global system interrupts.
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct IoApicInterruptSourceOverride {
@@ -93,7 +90,7 @@ pub struct LocalApicNonMaskableInterrupts {
     /// ACPI Processor ID (0xFF means all processors)
     pub acpi_proc_id: u8,
     pub flags: OtherApicFlags,
-    /// Should be configured with the `LINT0` and `LINT1` entries in the 
+    /// Should be configured with the `LINT0` and `LINT1` entries in the
     /// local vector table of the relevant processors local APIC.
     pub lint: u8,
 }

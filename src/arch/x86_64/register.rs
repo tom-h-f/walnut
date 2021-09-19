@@ -4,7 +4,7 @@
 macro_rules! dump_state {
     () => {
         use crate::efi_println;
-        let s = $crate::register::SysState::new().unwrap();
+        let s = $crate::arch::x86_64::SysState::new().unwrap();
         efi_println!("{:#016x?}", s);
     };
 }
@@ -34,7 +34,8 @@ use core::fmt;
 
 impl fmt::Debug for SysState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-         f.write_fmt(format_args!("
+        f.write_fmt(format_args!(
+            "
 RAX: {:#016X?}\tRBX: {:#016X?}\n
 RCX: {:#016X?}\tRDX: {:#016X?}\n
 RSI: {:#016X?}\tRDI: {:#016X?}\n
@@ -43,14 +44,25 @@ R8:  {:#016X?}\tR9:  {:#016X?}\n
 R10: {:#016X?}\tR11: {:#016X?}\n
 R12: {:#016X?}\tR13: {:#016X?}\n
 R14: {:#016X?}\tR15: {:#016X?}\n
-RFLAGS: {:#?}\n", 
-                     self.rax, self.rbx, self.rcx, 
-                     self.rdx, self.rsi, self.rdi,
-                     self.rsp, self.rbp, self.r8, 
-                     self.r9,  self.r10, self.r11, 
-                     self.r12, self.r13, self.r14,
-                     self.r15, self.rflags
-                     )) // TODO do floating point and other registers
+RFLAGS: {:#?}\n",
+            self.rax,
+            self.rbx,
+            self.rcx,
+            self.rdx,
+            self.rsi,
+            self.rdi,
+            self.rsp,
+            self.rbp,
+            self.r8,
+            self.r9,
+            self.r10,
+            self.r11,
+            self.r12,
+            self.r13,
+            self.r14,
+            self.r15,
+            self.rflags
+        )) // TODO do floating point and other registers
     }
 }
 

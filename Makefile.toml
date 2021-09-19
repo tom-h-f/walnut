@@ -33,12 +33,28 @@ script = '''
   -nodefaults \
   -vga std \
   -machine q35,accel=kvm:tcg \
-  -m 128M \
+  -m 1G \
   -drive if=pflash,format=raw,readonly=true,file=/usr/share/ovmf/OVMF.fd \
   -drive format=raw,file=fat:rw:./target/ \
   -serial stdio \
   -smp 4 \
   -nographic
+'''
+dependencies = ["b"]
+
+
+[tasks.rung]
+script = '''
+  qemu-system-x86_64 \
+  -enable-kvm \
+  -nodefaults \
+  -vga std \
+  -machine q35,accel=kvm:tcg \
+  -m 1G \
+  -drive if=pflash,format=raw,readonly=true,file=/usr/share/ovmf/OVMF.fd \
+  -drive format=raw,file=fat:rw:./target/ \
+  -serial stdio \
+  -smp 4 \
 '''
 dependencies = ["b"]
 

@@ -24,6 +24,16 @@ cargo make run
 ```
 ## Roadmap
 
+### Paging
+
+1. Exit boot services with the UEFI memory map.
+2. Setup a physical memory allocator with that map. Reclaim boot services and loader regions in the future. Platform runtime regions should be kernel-reserved. I guess MMIO regions should also be reserved.
+3. Identity map the lower 4GB, and map anything else you want. Maybe the framebuffer and higher-half kernel too. Let's hope UEFI doesn't have its NMI handler beyond that.
+4. Alternatively, I should probably identity map everything in the memory map, but I don't know if there's any guarantee that the higher-half will be left untouched.
+5. Do your CPU setup. GDT, IDT, ... Disable/flush caching, change MTRR+PAT registers, switch CR3, then re-enable caching.
+6. The physical memory manager could use a physical memory mirror for now on.
+
+
 - [ ] ACPI
 - [ ] Serial Driver
 - [ ] GDT
