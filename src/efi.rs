@@ -1,3 +1,5 @@
+use super::mm::rangeset::{Range, RangeSet};
+
 #[allow(dead_code)]
 const EFI_PAGE_SIZE: u64 = 4096;
 #[allow(dead_code)]
@@ -343,7 +345,7 @@ pub fn output_string(string: &str) {
 /// Gets the current memory map from the global `EFI_SYSTEM_TABLE`
 /// retreives the memory map key, then uses that aswell as the `handle`
 /// parameter to exit UEFI boot services.
-pub fn exit_boot_services(handle: EfiHandle) -> u64 {
+pub fn exit_boot_services(handle: EfiHandle) -> RangeSet {
 
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     if st.is_null() {
@@ -372,8 +374,9 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
     // After we call get_memory_map we cannot perform any prints or the map_key will 
     // cause the attempted exit to return `EFI_INVALID_PARAMETER`
 
+    let mut rs = RangeSet::new();
 
-    // walk through buffer, by the size of a memory descriptor
+    // Walk through buffer, by the size of a memory descriptor
     for offset in (0..mmap_size).step_by(desc_size) {
         // NOTE: we are unable to print out any of this
         // information since after `get_memory_map` is called, we cannot use
@@ -385,9 +388,11 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
         };
         let r#type: EfiMemoryType = entry.typ.into();
         if r#type.available_post_brexit() {
-            free_memory += entry.number_of_pages * EFI_PAGE_SIZE;
+            rs.insert(Range {
+                start: entry.physical_start,
+                end: entry.physical_start + (entry.number_of_pages * EFI_PAGE_SIZE),
+            });
         }
-
     }
 
     // Exit and check success
@@ -397,22 +402,9 @@ pub fn exit_boot_services(handle: EfiHandle) -> u64 {
     // destroy the EFI system table
     EFI_SYSTEM_TABLE.store(core::ptr::null_mut(), Ordering::SeqCst);
 
-    free_memory
+    rs
 }
 
-use crate::acpi;
-/// The entry point of the binary.
-#[no_mangle]
-pub extern "efiapi" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus {
-    unsafe {
-        register_system_table(st);
-        acpi::init().expect("Failed to initalize ACPI");
-        exit_boot_services(_handle);
-    }
-
-    crate::kmain();
-    unreachable!();
-}
 
 use crate::mm::PhysAddr;
 
@@ -455,3 +447,19 @@ pub fn get_acpi_table() -> Option<PhysAddr> {
                 })
         }).map(PhysAddr)
 }
+
+use crate::acpi;
+/// The entry point of the binary.
+#[no_mangle]
+pub unsafe extern "efiapi" fn efi_main(_handle: EfiHandle, st: *mut EfiSystemTable) -> EfiStatus {
+
+    register_system_table(st);
+
+    acpi::init().expect("Failed to initalize ACPI");
+
+    let mm = exit_boot_services(_handle);
+
+    crate::kmain(mm);
+    unreachable!();
+}
+
