@@ -2,6 +2,10 @@ use crate::mm::{self, PhysAddr};
 use crate::println;
 use core::mem::size_of;
 
+
+pub mod apic;
+pub use apic::{LocalApic, LocalX2Apic};
+
 // A `Result` type that wraps an ACPI error
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -257,34 +261,6 @@ pub struct Rsdt {
 
 
 
-/// We should get one of these for each core
-#[derive(Debug, Copy, Clone)]
-#[repr(C, packed)]
-struct LocalApic {
-    acpi_processor_uid: u8,
-    apic_id: u8,
-    flags: LocalApicFlags,
-}
-
-use bitflags::bitflags;
-bitflags! {
-    struct LocalApicFlags: u32 {
-        const ENABLED       = 1 << 0;
-        const ONLINE_CAPABLE = 1 << 1;
-    }
-}
-#[derive(Debug, Copy, Clone)]
-#[repr(C, packed)]
-struct LocalX2Apic {
-    /// Must be zero
-    reserved: u16,
-    /// processor's local x2APIC ID
-    x2apic_id: u32,
-    /// same as Local APIC Flags
-    flags: LocalApicFlags,
-
-    acpi_proc_id: u32,
-}
 
 
 #[repr(C, packed)]
