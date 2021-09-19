@@ -27,8 +27,15 @@ impl From<u8> for ApicRecordType {
 }
 
 
+use bitflags::bitflags;
 bitflags! {
-    struct OtherApicFlags: u16 {
+    pub struct LocalApicFlags: u32 {
+        const ENABLED       = 1 << 0;
+        const ONLINE_CAPABLE = 1 << 1;
+    }
+}
+bitflags! {
+    pub struct OtherApicFlags: u16 {
         /// If set then the interrupt is active when low
         const ACTIVE_WHEN_LOW = 1 << 1;
         /// If set then interrupt is level-triggered
@@ -47,75 +54,67 @@ bitflags! {
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct ProcessorLocalApic {
-    acpi_proc_id: u8,
-    apic_id: u8,
-    flags: LocalApicFlags,
+    pub acpi_proc_id: u8,
+    pub apic_id: u8,
+    pub flags: LocalApicFlags,
 }
 
-use bitflags::bitflags;
-bitflags! {
-    struct LocalApicFlags: u32 {
-        const ENABLED       = 1 << 0;
-        const ONLINE_CAPABLE = 1 << 1;
-    }
-}
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct IoApic {
-    io_apic_id: u8,
+    pub io_apic_id: u8,
     reserved: u8,
-    io_apic_addr: u32,
-    global_system_interrupt_base: u32,
+    pub io_apic_addr: u32,
+    pub global_system_interrupt_base: u32,
 }
 
 /// This entry type contains the data for an Interrupt Source Override. This explains how IRQ sources are mapped to global system interrupts. 
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct IoApicInterruptSourceOverride {
-    bus_source: u8,
-    irq_source: u8,
-    global_system_interrupt: u32,
-    flags: OtherApicFlags,
+    pub bus_source: u8,
+    pub irq_source: u8,
+    pub global_system_interrupt: u32,
+    pub flags: OtherApicFlags,
 }
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct IoApicNonMaskableInterruptSource {
-    nmi_source: u8,
+    pub nmi_source: u8,
     reserved: u8,
-    flags: OtherApicFlags,
-    global_system_interrupt: u32,
+    pub flags: OtherApicFlags,
+    pub global_system_interrupt: u32,
 }
-
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct LocalApicNonMaskableInterrupts {
     /// ACPI Processor ID (0xFF means all processors)
-    acpi_proc_id: u8,
-    flags: OtherApicFlags,
+    pub acpi_proc_id: u8,
+    pub flags: OtherApicFlags,
     /// Should be configured with the `LINT0` and `LINT1` entries in the 
     /// local vector table of the relevant processors local APIC.
-    lint: u8,
+    pub lint: u8,
 }
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct LocalApicAddressOverride {
     /// ACPI Processor ID (0xFF means all processors)
-    reserved: u16,
+    pub reserved: u16,
     /// 64-bit physical address of Local APIC
-    local_apic_physaddr: u64,
+    pub local_apic_physaddr: u64,
 }
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct LocalX2Apic {
     /// Must be zero
-    reserved: u16,
+    pub reserved: u16,
     /// processor's local x2APIC ID
-    x2apic_id: u32,
+    pub x2apic_id: u32,
     /// same as Local APIC Flags
-    flags: LocalApicFlags,
-    acpi_id: u32,
+    pub flags: LocalApicFlags,
+    pub acpi_id: u32,
 }
