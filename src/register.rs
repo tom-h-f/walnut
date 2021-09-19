@@ -3,9 +3,9 @@
 #[macro_export]
 macro_rules! dump_state {
     () => {
-        use crate::println;
+        use crate::efi_println;
         let s = $crate::register::SysState::new().unwrap();
-        println!("{:#016x?}", s);
+        efi_println!("{:#016x?}", s);
     };
 }
 

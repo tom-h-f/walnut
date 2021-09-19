@@ -1,14 +1,14 @@
 use crate::mm::{self, PhysAddr};
-use crate::efi_println;
 use core::mem::size_of;
 use core::fmt;
 
-pub mod apic;
-pub mod madt;
-pub mod rsdp;
 
+pub mod apic;
+
+pub mod madt;
 pub use madt::Madt;
-pub use apic::{LocalApic, LocalX2Apic};
+
+pub mod rsdp;
 pub use rsdp::{Rsdp, RsdpExtended};
 
 // A `Result` type that wraps an ACPI error
@@ -93,7 +93,6 @@ impl From<[u8; 4]> for TableType {
     }
 }
 
-
 /// System Descriptor Table Header
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
@@ -116,9 +115,12 @@ impl Table {
     ///
     /// # Returns
     /// `Ok(table, table_type, addr, size)` - `table` is the processed `Table` struct,
-    /// `table_type` is the `TableType` of `table`,
-    /// `addr` is the address of the payload of `table` and
-    /// `size` is the size of `table`'s payload.
+    /// `table_type` is the `TableType` of `table`
+    ///
+    /// `addr` is the address of the payload of `table`
+    ///
+    /// `size` is the size of `table`'s payload
+    ///
     /// `Err(err)` - An `acpi::structures::Error` indicating what went wrong
     pub unsafe fn from_addr(addr: PhysAddr) -> Result<(Self, TableType, PhysAddr, usize)> {
         // Read the table
@@ -146,38 +148,12 @@ impl Table {
         Ok((table, r#type, payload_addr, payload_size))
     }
 }
-
-
-impl fmt::Debug for Table {
-    #[allow(unaligned_references)]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ACPI Table")
-            .field("Signature", &core::str::from_utf8(&self.signature).unwrap())
-            .field("Length", &self.length)
-            .field("Revision", &self.revision)
-            .field("OEM ID", &core::str::from_utf8(&self.oem_id).unwrap())
-            .field(
-                "OEM Table ID",
-                &core::str::from_utf8(&self.oem_table_id).unwrap(),
-            )
-            // I don't know if creator ID is actually a string but its more fun this way
-            .field(
-                "Creator ID",
-                &core::str::from_utf8(&self.creator_id.to_le_bytes()).unwrap(),
-            )
-            .field("Creator Revision", &self.creator_revision)
-            .finish()
-    }
-}
-
-
 #[repr(C, packed)]
 pub struct Rsdt {
     table: Table,
     /// this points to Other SDT
     other_sdt_ptr: usize,
 }
-
 /// Computes a checksum by caluclating the sum of all bytes in `addr..(addr + size)`,
 /// returns `Ok` if `sum == 0`
 unsafe fn compute_checksum(addr: PhysAddr, size: usize, r#type: TableType) -> Result<()> {

@@ -1,16 +1,14 @@
-use crate::{efi_println, mm::{self, PhysAddr}};
-use super::{
-    Result, Error, Table, 
-    TableType, LocalApic, LocalX2Apic, 
-    LOCAL_APIC, X2_APIC
-};
-
+use super::apic::*;
+use super::{Error, Result, TableType};
+use crate::acpi::structures::apic::ApicRecordType;
+use crate::efi_println;
+use crate::mm::{self, PhysAddr};
 use core::mem::size_of;
-
 
 #[repr(C, packed)]
 pub struct Madt {
-    table: Table,
+    local_apic_addr: u32,
+    flags: u32, // TODO add bitflags
 }
 impl Madt {
     pub unsafe fn from_addr(addr: PhysAddr, size: usize) -> Result<Self> {
@@ -21,8 +19,14 @@ impl Madt {
         let local_apic_addr = slice.consume::<u32>().map_err(|_| E)?;
 
         // Get APIC flags
-        let _local_apic_flags = slice.consume::<u32>().map_err(|_| E)?;
+        let flags = slice.consume::<u32>().map_err(|_| E)?;
+        let ret = Self {
+            local_apic_addr,
+            flags,
+        };
 
+        let mut total_procs = 0;
+        let mut io_apic_addr = 0;
         // Handle Interrupt Contoller Structures
         while slice.len() > 0 {
             // Read the interrupt controller structure header
@@ -33,36 +37,81 @@ impl Madt {
                 .checked_sub(2)
                 .ok_or(E)?;
 
-            efi_println!("{:#x} {}", typ, len);
-
-            match typ {
-                LOCAL_APIC => {
+            // Could probably be done better with
+            // a generic and bindings for size functions?
+            // ah well!
+            match ApicRecordType::from(typ) {
+                ApicRecordType::ProcessorLocalApic => {
                     // Ensure data is correct size
-                    if len as usize != size_of::<LocalApic>() {
+                    if len as usize != size_of::<ProcessorLocalApic>() {
                         return Err(E);
                     }
 
-                    let apic = slice.consume::<LocalApic>().map_err(|_| E)?;
-                    efi_println!("{:#x?}", apic);
+                    let _apic = slice.consume::<ProcessorLocalApic>().map_err(|_| E)?;
+                    total_procs += 1;
+                    // TODO should probably check if each core that comes through here is `ENABLED` and if not do something!
                 }
-                X2_APIC => {
-                    
+                ApicRecordType::IoApic => {
+                    // Ensure data is correct size
+                    if len as usize != size_of::<IoApic>() {
+                        return Err(E);
+                    }
+
+                    let _apic = slice.consume::<IoApic>().map_err(|_| E)?;
+                    io_apic_addr = _apic.io_apic_addr;
+                }
+                ApicRecordType::IoApicInterruptSourceOverride => {
+                    // Ensure data is correct size
+                    if len as usize != size_of::<IoApicInterruptSourceOverride>() {
+                        return Err(E);
+                    }
+
+                    let _apic = slice
+                        .consume::<IoApicInterruptSourceOverride>()
+                        .map_err(|_| E)?;
+                }
+                ApicRecordType::IoApicNonMaskableInterruptSource => {
+                    // Ensure data is correct size
+                    if len as usize != size_of::<IoApicNonMaskableInterruptSource>() {
+                        return Err(E);
+                    }
+
+                    let _apic = slice.consume::<ProcessorLocalApic>().map_err(|_| E)?;
+                }
+                ApicRecordType::LocalApicNonMaskableInterrupts => {
+                    // Ensure data is correct size
+                    if len as usize != size_of::<LocalApicNonMaskableInterrupts>() {
+                        return Err(E);
+                    }
+
+                    let _apic = slice
+                        .consume::<LocalApicNonMaskableInterrupts>()
+                        .map_err(|_| E)?;
+                }
+                ApicRecordType::LocalApicAddressOverride => {
+                    // Ensure data is correct size
+                    if len as usize != size_of::<LocalApicAddressOverride>() {
+                        return Err(E);
+                    }
+
+                    let _apic = slice.consume::<LocalApicAddressOverride>().map_err(|_| E)?;
+                }
+                ApicRecordType::ProcessorLocalX2Apic => {
                     // Ensure data is correct size
                     if len as usize != size_of::<LocalX2Apic>() {
                         return Err(E);
                     }
 
-                    let apic = slice.consume::<LocalX2Apic>().map_err(|_| E)?;
-                    efi_println!("{:#x?}", apic);
+                    let _apic = slice.consume::<LocalX2Apic>().map_err(|_| E)?;
                 }
-                _ => {
+                ApicRecordType::Unknown(_) => {
                     slice.discard(len as usize).map_err(|_| E)?;
                 }
             }
         }
 
-        efi_println!("{:#x}", local_apic_addr);
+        efi_println!("Found {} cores, IOAPIC: {:#X?}, LAPIC: {:#X?}", total_procs, local_apic_addr, io_apic_addr);
 
-        Err(E)
+        Ok(ret)
     }
 }

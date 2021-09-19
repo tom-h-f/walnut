@@ -28,7 +28,6 @@ pub unsafe fn init() -> Result<()> {
 
     let entries = len / size_of::<u64>();
 
-    efi_println!("Loading {} tables from XSDT...", entries);
     for ii in 0..entries {
         // Get the physical address of the XSDT entry
         let entry_addr = ii.checked_mul(size_of::<u64>()).and_then(|f| {
@@ -44,15 +43,12 @@ pub unsafe fn init() -> Result<()> {
 
             match typ {
                 TableType::Madt => {
-                    efi_println!("MADT Table - Length: {:<4?} | Addr: {:#016X?}", len, addr.0);
-                    let madt = Madt::from_addr(addr, len)?;
+                    let _madt = Madt::from_addr(addr, len)?;
                 },
                 _ => {},
             }
 
     }
-
-    efi_println!("{:#x?}", xsdt);
 
     Ok(())
 }

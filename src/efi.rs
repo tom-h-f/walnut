@@ -275,7 +275,7 @@ pub mod print {
 
     #[macro_export]
     macro_rules! efi_println {
-    () => ($crate::print!("\n"));
+    () => ($crate::efi_print!("\n"));
     ($($arg:tt)*) => ($crate::efi_print!("{}\n", format_args!($($arg)*)));
 }
 }
@@ -464,9 +464,6 @@ pub fn get_acpi_table() -> Option<PhysAddr> {
                 })
         })
     {
-        efi_println!("ACPI Table at {:#x?} {:#x?}", acpi, unsafe {
-            core::ptr::read_unaligned(acpi as *const u64)
-        });
         Some(PhysAddr(acpi))
     } else {
         None

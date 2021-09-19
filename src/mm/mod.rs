@@ -53,6 +53,16 @@ impl PhysSlice {
 
         Ok(data)
     }
+
+    /// Reads a `T` from the slice, without updating the pointer or slice.
+    pub unsafe fn peek<T>(&self) -> Result<T, ()> {
+        if self.1 < size_of::<T>() {
+            return Err(());
+        }
+
+        // read the data
+        Ok(readpu::<T>(self.0))
+    }
 }
 
 /// Reads `T` at physical address `paddr`
