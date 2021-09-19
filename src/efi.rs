@@ -454,9 +454,6 @@ pub fn get_acpi_table() -> Option<PhysAddr> {
                 })
         })
     {
-        efi_println!("ACPI Table at {:#x?} {:#x?}", acpi, unsafe {
-            core::ptr::read_unaligned(acpi as *const u64)
-        });
         Some(PhysAddr(acpi))
     } else {
         None
