@@ -287,7 +287,7 @@ impl RangeSet {
 
         allocation.map(|(base, end, ptr)| {
             // Remove this range from the available set
-            self.remove(Range { start: base, end: end });
+            self.remove(Range { start: base, end });
             
             // Return out the pointer!
             ptr

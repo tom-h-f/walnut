@@ -240,10 +240,11 @@ impl EfiMemoryType {
     /// for general purpose use after boot services have been exited (brexit).
     pub fn available_post_brexit(&self) -> bool {
         use EfiMemoryType::*;
-        match self {
-            BootServicesCode | BootServicesData | Conventional | PersistentMemory => true,
-            _ => false,
-        }
+        matches!(self, 
+                 BootServicesCode | 
+                 BootServicesData | 
+                 Conventional     | 
+                 PersistentMemory )
     }
 }
 
@@ -441,7 +442,7 @@ pub fn get_acpi_table() -> Option<PhysAddr> {
 
     // Attempt to find the table with the ACPI 2.0 GUID, if can't find
     // attempt to find table with ACPI 1.0 GUID.
-    if let Some(acpi) = tables
+    tables
         .iter()
         .find_map(|EfiConfigurationTable { guid, table }| {
             (guid == &EFI_ACPI_TABLE_GUID).then_some(*table)
@@ -452,10 +453,5 @@ pub fn get_acpi_table() -> Option<PhysAddr> {
                 .find_map(|EfiConfigurationTable { guid, table }| {
                     (guid == &ACPI_TABLE_GUID).then_some(*table)
                 })
-        })
-    {
-        Some(PhysAddr(acpi))
-    } else {
-        None
-    }
+        }).map(PhysAddr)
 }

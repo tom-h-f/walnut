@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(asm, abi_efiapi, llvm_asm, bool_to_option)]
 #![feature(panic_info_message)]
+#![allow(clippy::missing_safety_doc)]
 pub mod acpi;
 #[doc(hidden)]
 mod core_fns;

@@ -1,5 +1,10 @@
 //! Various memory management and CPU state mangement functions and macros.
 
+#![allow(clippy::result_unit_err)]
+// TODO we should probably implement a custom 
+// `Result` and `Error` type for this module
+
+
 pub mod rangeset;
 
 use core::mem::size_of;
@@ -22,6 +27,10 @@ impl PhysSlice {
     /// Get the remaining length of the slice
     pub fn len(&self) -> usize {
         self.1
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.1 == 0
     }
 
     /// Discard `bytes` from the slice by updating the pointer and length
@@ -57,11 +66,10 @@ impl PhysSlice {
     /// Reads a `T` from the slice, without updating the pointer or slice.
     pub unsafe fn peek<T>(&self) -> Result<T, ()> {
         if self.1 < size_of::<T>() {
-            return Err(());
+            Err(())
+        } else {
+            Ok(readpu::<T>(self.0)) 
         }
-
-        // read the data
-        Ok(readpu::<T>(self.0))
     }
 }
 

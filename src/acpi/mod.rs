@@ -1,5 +1,5 @@
 use crate::acpi::structures::Madt;
-use crate::{efi, efi_println};
+use crate::{efi};
 use crate::mm::{self, PhysAddr};
 use core::mem::size_of;
 
@@ -15,7 +15,7 @@ pub unsafe fn init() -> Result<()> {
     let rsdp = RsdpExtended::from_addr(rsdp_addr)?;
 
     // Get XSDT
-    let (xsdt, typ, 
+    let (_xsdt, typ, 
         x_addr, len) = Table::from_addr(PhysAddr(rsdp.xsdt_address))?;
 
     if typ != TableType::Xsdt {
@@ -45,7 +45,9 @@ pub unsafe fn init() -> Result<()> {
                 TableType::Madt => {
                     let _madt = Madt::from_addr(addr, len)?;
                 },
-                _ => {},
+                _ => {
+                    let _bob = typ;
+                },
             }
 
     }

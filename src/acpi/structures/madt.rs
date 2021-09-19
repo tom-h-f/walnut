@@ -28,7 +28,7 @@ impl Madt {
         let mut total_procs = 0;
         let mut io_apic_addr = 0;
         // Handle Interrupt Contoller Structures
-        while slice.len() > 0 {
+        while !slice.is_empty() {
             // Read the interrupt controller structure header
             let typ = slice.consume::<u8>().map_err(|_| E)?;
             let len = slice
