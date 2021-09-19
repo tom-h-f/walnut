@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Install UEFI Target
+      run: rustup target add x86_64-unknown-uefi
     - name: Build
       run: cargo build --verbose
     - name: Run tests
