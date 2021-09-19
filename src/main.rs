@@ -15,9 +15,13 @@ pub mod register;
 pub mod serial;
 
 
-pub fn kmain() {
+
+pub fn kmain(memory_map: mm::rangeset::RangeSet) {
     dump_state!();
     serial_println!("Welcome to Walnut!");
+    serial_println!("{:#X?}", memory_map);
+    serial_println!("Total Memory: {} MiB", memory_map.total_size() / 1024 /1024);
+
 
     panic!("reached end of kmain()");
 }
