@@ -127,9 +127,12 @@ impl Table {
     ///
     /// # Returns
     /// `Ok(table, table_type, addr, size)` - `table` is the processed `Table` struct,
-    /// `table_type` is the `TableType` of `table`,
-    /// `addr` is the address of the payload of `table` and
-    /// `size` is the size of `table`'s payload.
+    /// `table_type` is the `TableType` of `table`
+    ///
+    /// `addr` is the address of the payload of `table`
+    ///
+    /// `size` is the size of `table`'s payload
+    ///
     /// `Err(err)` - An `acpi::structures::Error` indicating what went wrong
     pub unsafe fn from_addr(addr: PhysAddr) -> Result<(Self, TableType, PhysAddr, usize)> {
         // Read the table
