@@ -14,6 +14,13 @@ pub struct Range {
     pub end:   u64,
 }
 
+impl Range {
+    #[inline]
+    pub fn size(&self) -> usize {
+        (self.end - self.start) as usize
+    }
+}
+
 /// A set of non-overlapping inclusive `u64` ranges
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -29,6 +36,17 @@ pub struct RangeSet {
     in_use: u32,
 }
 
+use core::fmt;
+impl fmt::Debug for RangeSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut ds = f.debug_set();
+        for i in 0..self.in_use as usize {
+            ds.entry(&self.ranges[i]);
+        }
+        ds.finish()
+    }
+}
+
 impl RangeSet {
     /// Create a new empty RangeSet
     pub const fn new() -> RangeSet {
@@ -36,6 +54,13 @@ impl RangeSet {
             ranges: [Range { start: 0, end: 0 }; 256],
             in_use: 0,
         }
+    }
+    pub fn total_size(&self) -> usize {
+        let mut total = 0;
+        for i in 0..self.in_use as usize {
+            total += self.ranges[i].size()
+        }
+        total
     }
 
     /// Get all the entries in the RangeSet as a slice
