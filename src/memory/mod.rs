@@ -61,3 +61,8 @@ pub fn align_up(addr: u64, align: u64) -> u64 {
 pub fn init() {
 
 }
+
+#[alloc_error_handler]
+fn alloc_error_handler(layout: core::alloc::Layout) -> ! {
+    panic!("Allocator Error {:#x?}", layout);
+}
