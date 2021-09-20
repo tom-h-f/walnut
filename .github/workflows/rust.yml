@@ -28,4 +28,3 @@ jobs:
       run: cargo +nightly test --lib
     - name: Run integration tests
       run: cargo +nightly test --test '*'
-
