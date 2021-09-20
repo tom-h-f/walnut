@@ -5,12 +5,18 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 // inline assembly for libcore requirement functions, e.g memcpy
 #![feature(asm)]
-// Map bools to options, used at `efi.rs:313`
+// Map bools to options, used at `efi/mod.rs:313`
 #![feature(bool_to_option)]
+// Used in the linked list allocator in `memory/paging/linked_list.rs`
+#![feature(const_mut_refs)]
+
+extern crate alloc;
+
 
 pub mod io;
 pub mod arch;
