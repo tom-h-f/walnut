@@ -12,6 +12,7 @@
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 
+
 use walnut::efi::{self, structures::{EfiHandle, EfiSystemTable}};
 
 /// Entry point of that UEFI calls.
@@ -44,6 +45,8 @@ pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTabl
 pub fn kmain(memory_range: walnut::memory::MemoryRange) {
 
     walnut::println!("{:#X?}", memory_range);
+
+
 
     panic!("reached end of kmain")
 }
