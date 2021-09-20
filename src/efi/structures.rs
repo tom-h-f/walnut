@@ -1,4 +1,5 @@
 use core::sync::atomic::{AtomicPtr, Ordering};
+use super::memory::{EfiMemoryDescriptor, EfiMemoryType};
 
 pub const EFI_PAGE_SIZE: u64 = 4096;
 
@@ -192,95 +193,6 @@ pub struct EfiTableHeader {
 }
 
 
-#[derive(Copy, Clone, Default, Debug)]
-#[repr(C)]
-pub struct EfiMemoryDescriptor {
-    pub typ: u32,
-    pub physical_start: u64,
-    pub virtual_start: u64,
-    pub number_of_pages: u64,
-    pub attribute: u64,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(u32)]
-pub enum EfiMemoryType {
-    /// This enum variant is not used.
-    Reserved = 0,
-    /// The code portions of a loaded UEFI application.
-    LoaderCode = 1,
-    /// The data portions of a loaded UEFI applications,
-    /// as well as any memory allocated by it.
-    #[allow(dead_code)]
-    LoaderData = 2,
-    /// Code of the boot drivers.
-    ///
-    /// Can be reused after OS is loaded.
-    BootServicesCode = 3,
-    /// Memory used to store boot drivers' data.
-    ///
-    /// Can be reused after OS is loaded.
-    BootServicesData = 4,
-    /// Runtime drivers' code.
-    RuntimeServicesCode = 5,
-    /// Runtime services' code.
-    RuntimeServicesData = 6,
-    /// Free usable memory.
-    Conventional = 7,
-    /// Memory in which errors have been detected.
-    Unusable = 8,
-    /// Memory that holds ACPI tables.
-    /// Can be reclaimed after they are parsed.
-    AcpiReclaim = 9,
-    /// Firmware-reserved addresses.
-    AcpiNonVolatile = 10,
-    /// A region used for memory-mapped I/O.
-    Mmio = 11,
-    /// Address space used for memory-mapped port I/O.
-    MmioPortSpace = 12,
-    /// Address space which is part of the processor.
-    PalCode = 13,
-    /// Memory region which is usable and is also non-volatile.
-    PersistentMemory = 14,
-}
-
-impl From<u32> for EfiMemoryType {
-    fn from(v: u32) -> Self {
-        use EfiMemoryType::*;
-        match v {
-            0 => Reserved,
-            1 => LoaderCode,
-            2 => LoaderCode,
-            3 => BootServicesCode,
-            4 => BootServicesData,
-            5 => RuntimeServicesCode,
-            6 => RuntimeServicesData,
-            7 => Conventional,
-            8 => Unusable,
-            9 => AcpiReclaim,
-            10 => AcpiNonVolatile,
-            11 => Mmio,
-            12 => MmioPortSpace,
-            13 => PalCode,
-            14 => PersistentMemory,
-            _ => {
-                panic!("Unsupported memory type supplied!")
-            }
-        }
-    }
-}
-
-impl EfiMemoryType {
-    /// Returns whether or not the memory type is available
-    /// for general purpose use after boot services have been exited (brexit).
-    pub fn available_post_exit_boot_services(&self) -> bool {
-        use EfiMemoryType::*;
-        matches!(
-            self,
-            BootServicesCode | BootServicesData | Conventional | PersistentMemory
-        )
-    }
-}
 
 pub fn load_system_table() -> Result<&'static EfiSystemTable> {
      let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
@@ -315,19 +227,19 @@ mod test {
 
     // Checks we can load the system table and get the `Ok` value
     #[test_case]
-    fn test_load_system_table() {
+    fn load_system_table() {
         assert!(load_system_table().is_ok())
     }
 
     #[test_case]
-    fn test_load_system_table_post_destroy() {
+    fn load_system_table_post_destroy() {
         destroy_system_table();
         assert!(load_system_table().is_err())
     }
 
     #[test_case]
     #[should_panic]
-    fn test_access_boot_services_post_exit() {
+    fn access_boot_services_post_exit() {
         let st = load_system_table();
         if st.is_err() {
             return;
