@@ -14,6 +14,8 @@
 #![feature(bool_to_option)]
 // Used in the linked list allocator in `memory/paging/linked_list.rs`
 #![feature(const_mut_refs)]
+// Used for allocator error handling, implemented in `memory/mod.rs:66`
+#![feature(alloc_error_handler)]
 
 extern crate alloc;
 
@@ -76,7 +78,7 @@ where
     T: Fn(),
 {
     fn run(&self) {
-        print!("{}...\t", core::any::type_name::<T>());
+        print!("{:<48}", core::any::type_name::<T>());
         self();
         println!("[ok]");
     }
@@ -122,7 +124,15 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[test_case]
 fn trivial_assertion() {
-    print!("trivial assertion... ");
     assert_eq!(1, 1);
-    println!("[ok]");
+}
+
+#[test_case]
+fn vec_push() {
+    use alloc::vec::Vec;
+    let mut v: Vec<u64> = Vec::new();
+    for i in 0..200 {
+        //v.push(0x41);
+        //v.pop();
+    }
 }
