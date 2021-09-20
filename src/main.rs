@@ -6,12 +6,17 @@
 #![test_runner(walnut::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+// Detailed information for panics
 #![feature(panic_info_message)]
+
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 
-use walnut::println;
-use core::panic::PanicInfo;
+
+
+
+
+use walnut::efi::{self, structures::{EfiHandle, EfiSystemTable}};
 
 /// Entry point of that UEFI calls.
 ///
@@ -21,41 +26,45 @@ use core::panic::PanicInfo;
 /// Can be unsafe due to accessing structures and functions
 /// from raw physical memory.
 #[no_mangle]
-pub unsafe extern "efiapi" fn efi_main() -> u64 {
+pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
 
+    efi::init(&mut *st).expect("Couldnt intialize EFI structures");
+    let memory_range = efi::exit_boot_services(handle).expect("Unable to exit UEFI boot services");
+    walnut::println!("{:#X?}", memory_range);
     kmain();
     unreachable!();
 }
 
+
+/// Entry point of the kernel
 pub fn kmain() {
 
     #[cfg(test)]
     test_main();
-    #[cfg(test)]
-    panic!("TEST");
+
 
     panic!("reached end of kmain")
 }
 
-
 #[cfg(not(test))]
 #[panic_handler]
-fn panic_handler(_info: &PanicInfo) -> ! {
-    println!("!!! PANIC !!!");
+fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
+    walnut::println!("!!! PANIC !!!");
     if let Some(loc) = _info.location() {
-        println!("Location: {}", loc);
+        walnut::println!("Location: {}", loc);
     }
     if let Some(msg) = _info.message() {
-        println!("Message:  {}", msg);
+        walnut::println!("Message:  {}", msg);
     }
+    walnut::dump_state!();
     // Exit QEMU
-    qemu::exit_qemu(qemu::QemuExitCode::Failed, None);
+    qemu::exit_failed(); 
     unreachable!()
 }
 
 #[cfg(test)]
 #[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
     walnut::test_panic_handler(info)
 }
 
