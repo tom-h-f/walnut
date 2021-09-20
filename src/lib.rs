@@ -9,9 +9,14 @@
 #![feature(abi_efiapi)]
 // inline assembly for libcore requirement functions, e.g memcpy
 #![feature(asm)]
+// Map bools to options, used at `efi.rs:313`
+#![feature(bool_to_option)]
 
 pub mod io;
 pub mod arch;
+pub mod efi;
+mod memory;
+
 
 
 
@@ -54,7 +59,6 @@ pub mod arch;
 // --------------------------------------------------
 
 use core::panic::PanicInfo;
-use qemu::{exit_qemu, QemuExitCode};
 
 /// Custom Test trait for the testing setup
 pub trait Testable {
@@ -78,7 +82,7 @@ pub fn test_runner(tests: &[&dyn Testable]) {
     for test in tests {
         test.run();
     }
-    exit_qemu(QemuExitCode::Success, None);
+    qemu::exit_success();
 }
 
 #[test_case]
@@ -92,7 +96,7 @@ fn trivial_assertion() {
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
-    exit_qemu(QemuExitCode::Failed, None);
+    qemu::exit_failed();
     unreachable!();
 }
 
