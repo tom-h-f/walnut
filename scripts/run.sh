@@ -2,6 +2,7 @@
 
 DEFAULT_BIN_PATH="target/x86_64-unknown-uefi/debug/walnut.efi"
 
+BASE_DIR="$(dirname $0)/../"
 
 if [ $# -eq 0 ]; then
   if [ ! -f DEFAULT_BIN_PATH ]; then
@@ -18,8 +19,8 @@ if [ "$1" = "" ]; then
   BIN_PATH=$DEFAULT_BIN_PATH
 fi
 
-mkdir -p target/EFI/BOOT
-cp $BIN_PATH target/EFI/BOOT/BOOTx64.EFI
+mkdir -p $BASE_DIR/target/EFI/BOOT
+cp $BIN_PATH $BASE_DIR/target/EFI/BOOT/BOOTx64.EFI
 
 echo "Running QEMU..."
 
@@ -34,7 +35,7 @@ qemu-system-x86_64 \
   -machine q35,accel=kvm:tcg \
   -m 1G \
   -drive if=pflash,format=raw,readonly=true,file=/usr/share/ovmf/OVMF.fd \
-  -drive format=raw,file=fat:rw:./target/ \
+  -drive format=raw,file=fat:rw:$BASE_DIR/target/ \
   -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
   -serial stdio \
   -smp 4 \
