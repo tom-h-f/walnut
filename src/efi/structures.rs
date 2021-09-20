@@ -307,3 +307,34 @@ pub fn exit_boot_service_int(st: &EfiSystemTable, handle: EfiHandle, key: u64) -
 
     Ok(())
 }
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    // Checks we can load the system table and get the `Ok` value
+    #[test_case]
+    fn test_load_system_table() {
+        assert!(load_system_table().is_ok())
+    }
+
+    #[test_case]
+    fn test_load_system_table_post_destroy() {
+        destroy_system_table();
+        assert!(load_system_table().is_err())
+    }
+
+    #[test_case]
+    #[should_panic]
+    fn test_access_boot_services_post_exit() {
+        let st = load_system_table();
+        if st.is_err() {
+            return;
+        } 
+        unsafe {
+            ((*st.unwrap().boot_services).get_memory_map)(&mut 0, &mut 0, &mut 0, &mut 0, &mut 0);
+        }
+    }
+
+}
