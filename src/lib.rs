@@ -70,9 +70,9 @@ where
     T: Fn(),
 {
     fn run(&self) {
-        serial_print!("{}...\t", core::any::type_name::<T>());
+        print!("{}...\t", core::any::type_name::<T>());
         self();
-        serial_println!("[ok]");
+        println!("[ok]");
     }
 }
 
@@ -85,17 +85,12 @@ pub fn test_runner(tests: &[&dyn Testable]) {
     qemu::exit_success();
 }
 
-#[test_case]
-fn trivial_assertion() {
-    print!("trivial assertion... ");
-    assert_eq!(1, 1);
-    println!("[ok]");
-}
+
 
 /// Panic handler for the test harness
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
-    serial_println!("[failed]\n");
-    serial_println!("Error: {}\n", info);
+    println!("[failed]\n");
+    println!("Error: {}\n", info);
     qemu::exit_failed();
     unreachable!();
 }
@@ -103,7 +98,11 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 /// Entry point for `cargo test`
 #[cfg(test)]
 #[no_mangle]
-pub unsafe extern "efiapi" fn efi_main() -> ! {
+pub unsafe extern "efiapi" fn efi_main(handle: efi::structures::EfiHandle, 
+                                       st: *mut efi::structures::EfiSystemTable) -> u64 {
+    
+    efi::init(&mut *st).expect("Couldnt intialize EFI structures");
+    efi::exit_boot_services(handle).unwrap();
     test_main();
     loop {}
 }
@@ -113,4 +112,11 @@ pub unsafe extern "efiapi" fn efi_main() -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
+}
+
+#[test_case]
+fn trivial_assertion() {
+    print!("trivial assertion... ");
+    assert_eq!(1, 1);
+    println!("[ok]");
 }
