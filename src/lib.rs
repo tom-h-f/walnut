@@ -15,7 +15,7 @@
 pub mod io;
 pub mod arch;
 pub mod efi;
-mod memory;
+pub mod memory;
 
 
 
@@ -103,7 +103,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 /// Entry point for `cargo test`
 #[cfg(test)]
 #[no_mangle]
-pub extern "efiapi" fn efi_main() -> ! {
+pub unsafe extern "efiapi" fn efi_main() -> ! {
     test_main();
     loop {}
 }
