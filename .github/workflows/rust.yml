@@ -23,3 +23,7 @@ jobs:
     - name: Lint
       run: cargo +nightly clippy 
       # TODO run `cargo test --verbose` once tests are implemented
+    - name: Run unit tests
+      run: cargo +nightly test --lib
+    - name: Run integration tests
+      run: cargo +nightly test --test '*'
