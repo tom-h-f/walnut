@@ -34,7 +34,7 @@ qemu-system-x86_64 \
   -vga std \
   -machine q35,accel=kvm:tcg \
   -m 1G \
-  -drive if=pflash,format=raw,readonly=true,file=/usr/share/ovmf/OVMF.fd \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/ovmf/OVMF.fd \
   -drive format=raw,file=fat:rw:$BASE_DIR/target/ \
   -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
   -serial stdio \
