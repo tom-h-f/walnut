@@ -24,4 +24,3 @@ fn panic(info: &PanicInfo) -> ! {
 fn test_println() {
     walnut::println!("test_println output");
 }
-

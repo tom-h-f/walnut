@@ -7,15 +7,12 @@ extern crate qemu;
 
 use core::panic::PanicInfo;
 
-
-
-
 #[no_mangle]
 pub extern "C" fn efi_main() -> ! {
     should_fail();
     walnut::println!("[test did not panic]");
     qemu::exit_failed();
-    loop{}
+    loop {}
 }
 
 fn should_fail() {
@@ -29,5 +26,3 @@ fn panic(_info: &PanicInfo) -> ! {
     qemu::exit_success();
     loop {}
 }
-
-

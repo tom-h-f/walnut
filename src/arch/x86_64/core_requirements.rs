@@ -1,4 +1,4 @@
-//! This module fufills the requirements of memory functions required to build 
+//! This module fufills the requirements of memory functions required to build
 //! Rust
 
 #[no_mangle]

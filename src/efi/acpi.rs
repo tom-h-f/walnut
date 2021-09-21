@@ -33,9 +33,9 @@ pub fn get_acpi_table() -> Option<PhysAddr> {
         .or_else(|| {
             tables
                 .iter()
-               .find_map(|EfiConfigurationTable { guid, table }| {
+                .find_map(|EfiConfigurationTable { guid, table }| {
                     (guid == &ACPI_TABLE_GUID).then_some(*table)
                 })
         })
-        .map(|a|PhysAddr(a as u64))
-} 
+        .map(|a| PhysAddr(a as u64))
+}

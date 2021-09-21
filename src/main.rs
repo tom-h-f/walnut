@@ -1,31 +1,32 @@
 #![no_std]
 #![no_main]
-
-// Enable testing 
+// Enable testing
 #![feature(custom_test_frameworks)]
 #![test_runner(walnut::test_runner)]
 #![reexport_test_harness_main = "test_main"]
-
 // Detailed information for panics
 #![feature(panic_info_message)]
-
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 
-
-use walnut::efi::{self, structures::{EfiHandle, EfiSystemTable}};
+use walnut::
+{
+    efi::{
+        self,
+        structures::{EfiHandle, EfiSystemTable},
+    }, 
+    memory::RangeSet,
+} ;
 
 /// Entry point of that UEFI calls.
 ///
 /// Gets the memory map from EFI, and exits UEFI Boot Services
 ///
-/// # Safety 
+/// # Safety
 /// Can be unsafe due to accessing structures and functions
 /// from raw physical memory.
 #[no_mangle]
 pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
-
-
     efi::init(&mut *st).expect("Couldnt intialize EFI structures");
     let memory_range = efi::exit_boot_services(handle).expect("Unable to exit UEFI boot services");
 
@@ -33,20 +34,17 @@ pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTabl
     #[cfg(test)]
     test_main();
 
-
     // Call kernel main and supply the memory range obtained from
     // GetMemoryMap
     kmain(memory_range);
     unreachable!();
 }
 
-
 /// Entry point of the kernel
-pub fn kmain(memory_range: walnut::memory::MemoryRange) {
-
-    walnut::println!("{:#X?}", memory_range);
-
-
+pub fn kmain(memory_range: RangeSet)  {
+    walnut::println!("{:#x?}", memory_range);
+    walnut::println!("{:#x?}", memory_range.total_size());
+    walnut::println!("Largest: {:#x?}", memory_range.largest().unwrap());
 
     panic!("reached end of kmain")
 }
@@ -63,7 +61,7 @@ fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
     }
     walnut::dump_state!();
     // Exit QEMU
-    qemu::exit_failed(); 
+    qemu::exit_failed();
     unreachable!()
 }
 
@@ -72,4 +70,3 @@ fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
 fn panic(info: &core::panic::PanicInfo) -> ! {
     walnut::test_panic_handler(info)
 }
-
