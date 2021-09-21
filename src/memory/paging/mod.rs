@@ -1,12 +1,14 @@
-use super::MemoryRange;
-
-pub mod linked_list;
+mod linked_list;
+pub mod page;
 
 use linked_list::LinkedListAllocator;
 
+pub use super::{Error, Result};
+
+pub const PAGE_SIZE: u64 = 4096;
+
 #[global_allocator]
-static ALLOCATOR: Locked<LinkedListAllocator> =
-    Locked::new(LinkedListAllocator::new());
+pub static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
 
 /// A wrapper around spin::Mutex to permit trait implementations.
 pub struct Locked<A> {
@@ -24,17 +26,3 @@ impl<A> Locked<A> {
         self.inner.lock()
     }
 }
-
-
-
-pub fn init_heap_allocator(memory_range: MemoryRange) {
-    unsafe { ALLOCATOR.lock().init(memory_range.start, memory_range.end); }
-}
-
-
-pub fn init_frame_allocator() {
-
-}
-
-
-
