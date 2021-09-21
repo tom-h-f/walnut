@@ -4,8 +4,6 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
-
-
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 // inline assembly for libcore requirement functions, e.g memcpy
@@ -16,51 +14,17 @@
 #![feature(const_mut_refs)]
 // Used for allocator error handling, implemented in `memory/mod.rs:66`
 #![feature(alloc_error_handler)]
+// Used for implementing operations for `PhysFrame` across different Page Sizes
+#![feature(const_fn_trait_bound)]
 
 extern crate alloc;
 
-
-pub mod io;
 pub mod arch;
 pub mod efi;
+pub mod io;
+
 pub mod memory;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+pub use memory::{PhysAddr, VirtAddr};
 
 // --------------------------------------------------
 // Testing
@@ -93,8 +57,6 @@ pub fn test_runner(tests: &[&dyn Testable]) {
     qemu::exit_success();
 }
 
-
-
 /// Panic handler for the test harness
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
     println!("[failed]\n");
@@ -106,9 +68,10 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 /// Entry point for `cargo test`
 #[cfg(test)]
 #[no_mangle]
-pub unsafe extern "efiapi" fn efi_main(handle: efi::structures::EfiHandle, 
-                                       st: *mut efi::structures::EfiSystemTable) -> u64 {
-    
+pub unsafe extern "efiapi" fn efi_main(
+    handle: efi::structures::EfiHandle,
+    st: *mut efi::structures::EfiSystemTable,
+) -> u64 {
     efi::init(&mut *st).expect("Couldnt intialize EFI structures");
     efi::exit_boot_services(handle).unwrap();
     test_main();
