@@ -1,63 +1,71 @@
 #![no_std]
 #![no_main]
-#![feature(asm, abi_efiapi, llvm_asm, bool_to_option)]
+// Enable testing
+#![feature(custom_test_frameworks)]
+#![test_runner(walnut::test_runner)]
+#![reexport_test_harness_main = "test_main"]
+// Detailed information for panics
 #![feature(panic_info_message)]
-#![feature(abi_x86_interrupt)]
-#![allow(clippy::missing_safety_doc)]
-pub mod acpi;
-pub mod arch;
-#[doc(hidden)]
-mod core_fns;
-pub mod cpu;
-#[doc(hidden)]
-mod efi;
-mod error;
-pub mod mm;
-pub mod paging;
-pub use crate::arch::idt;
-pub mod serial;
+// Needed for `efi_main` calling convention
+#![feature(abi_efiapi)]
 
+use walnut::{
+    efi::{
+        self,
+        structures::{EfiHandle, EfiSystemTable},
+    },
+    memory::RangeSet,
+};
 
-use x86_64::{VirtAddr, structures::paging::{Translate, Page}};
-pub fn kmain(mut memory_map: mm::PhysicalMemoryMap) {
-    arch::idt::init();
-    let mut mapper = paging::init();
-    let mut fa = paging::EmptyFrameAllocator;
+/// Entry point of that UEFI calls.
+///
+/// Gets the memory map from EFI, and exits UEFI Boot Services
+///
+/// # Safety
+/// Can be unsafe due to accessing structures and functions
+/// from raw physical memory.
+#[no_mangle]
+pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
+    efi::init(&mut *st).expect("Couldnt intialize EFI structures");
+    let memory_range = efi::exit_boot_services(handle).expect("Unable to exit UEFI boot services");
 
-    let page = Page::containing_address(VirtAddr::zero());
-    paging::create_example_mapping(page, &mut mapper, &mut fa);
-    // write the string `New!` to the screen through the new mapping
-    let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
-    unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e)};
+    // Run tests after we exit UEFI boot services
+    #[cfg(test)]
+    test_main();
 
-    let addresses = [
-        // the identity-mapped vga buffer page
-        0xb8000,
-        // some code page
-        0x201008,
-        // some stack page
-        0x0100_0020_1a10,
-        // virtual address mapped to physical address 0
-       memory_map.map.largest().start, 
-    ];
-
-    for &address in &addresses {
-        let virt = VirtAddr::new(address);
-        let phys = unsafe { mapper.translate_addr(virt) };
-        println!("{:?} -> {:?}", virt, phys);
-    }
-    panic!("reached end of kmain()");
+    // Call kernel main and supply the memory range obtained from
+    // GetMemoryMap
+    kmain(memory_range);
+    unreachable!();
 }
 
+/// Entry point of the kernel
+pub fn kmain(memory_range: RangeSet) {
+    walnut::println!("{:#x?}", memory_range);
+    walnut::println!("{:#x?}", memory_range.total_size());
+    walnut::println!("Largest: {:#x?}", memory_range.largest().unwrap());
+
+    panic!("reached end of kmain")
+}
+
+#[cfg(not(test))]
 #[panic_handler]
 fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
-    println!("!!! PANIC !!!");
+    walnut::println!("!!! PANIC !!!");
     if let Some(loc) = _info.location() {
-        println!("Location: {}", loc);
+        walnut::println!("Location: {}", loc);
     }
     if let Some(msg) = _info.message() {
-        println!("Message:  {}", msg);
+        walnut::println!("Message:  {}", msg);
     }
-    dump_state!();
-    loop {}
+    walnut::dump_state!();
+    // Exit QEMU
+    qemu::exit_failed();
+    unreachable!()
+}
+
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    walnut::test_panic_handler(info)
 }

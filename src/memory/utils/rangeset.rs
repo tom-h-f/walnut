@@ -1,23 +1,12 @@
-//! Library which provides a `RangeSet` which contains non-overlapping sets of
-//! `u64` inclusive ranges. The `RangeSet` can be used to insert or remove
-//! ranges of `u64`s and thus is very useful for physical memory management.
-
-use core::cmp;
+use core::{cmp, fmt::Debug};
 
 /// An inclusive range. We do not use `RangeInclusive` as it does not implement
 /// `Copy`
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Default)]
 #[repr(C)]
 pub struct Range {
     pub start: u64,
     pub end: u64,
-}
-
-impl Range {
-    #[inline]
-    pub fn size(&self) -> usize {
-        (self.end - self.start) as usize
-    }
 }
 
 /// A set of non-overlapping inclusive `u64` ranges
@@ -32,18 +21,7 @@ pub struct RangeSet {
     /// This is not a usize to make the structure fixed size so we can pass it
     /// directly from protected mode to long mode. Since `ranges` is fixed u32
     /// is plenty large for this use.
-    pub in_use: u32,
-}
-
-use core::fmt;
-impl fmt::Debug for RangeSet {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut ds = f.debug_set();
-        for i in 0..self.in_use as usize {
-            ds.entry(&self.ranges[i]);
-        }
-        ds.finish()
-    }
+    in_use: u32,
 }
 
 impl RangeSet {
@@ -53,13 +31,6 @@ impl RangeSet {
             ranges: [Range { start: 0, end: 0 }; 256],
             in_use: 0,
         }
-    }
-    pub fn total_size(&self) -> usize {
-        let mut total = 0;
-        for i in 0..self.in_use as usize {
-            total += self.ranges[i].size()
-        }
-        total
     }
 
     /// Get all the entries in the RangeSet as a slice
@@ -98,7 +69,7 @@ impl RangeSet {
                 // Note that we do a saturated add of one to each range.
                 // This is done so that two ranges that are 'touching' but
                 // not overlapping will be combined.
-                if overlaps(
+                if Range::overlaps(
                     Range {
                         start: range.start,
                         end: range.end.saturating_add(1),
@@ -137,19 +108,6 @@ impl RangeSet {
         self.ranges[self.in_use as usize] = range;
         self.in_use += 1;
     }
-    // Finds the `Range` in `self.ranges` the  with the largest size,
-    /// and returns its start address
-    pub fn largest(&self) -> Range {
-        let mut biggest = 0;
-        let mut best: Range = Range::default();
-        for r in self.entries() {
-            if r.size() > biggest {
-                biggest = r.size();
-                best = *r;
-            }
-        }
-        best
-    }
 
     /// Remove `range` from the RangeSet
     ///
@@ -166,13 +124,13 @@ impl RangeSet {
 
                 // If there is no overlap, there is nothing to do with this
                 // range.
-                if overlaps(range, ent).is_none() {
+                if Range::overlaps(range, ent).is_none() {
                     continue;
                 }
 
                 // If this entry is entirely contained by the range to remove,
                 // then we can just delete it.
-                if contains(ent, range) {
+                if Range::contains(ent, range) {
                     self.delete(ii);
                     continue 'try_subtractions;
                 }
@@ -286,7 +244,7 @@ impl RangeSet {
             if let Some(regions) = regions {
                 // Check if there is overlap with this region
                 for &region in regions.entries() {
-                    if let Some(overlap) = overlaps(*ent, region) {
+                    if let Some(overlap) = Range::overlaps(*ent, region) {
                         // Compute the rounded-up alignment from the
                         // overlapping region
                         let align_overlap = (overlap.start.wrapping_add(alignmask)) & !alignmask;
@@ -333,59 +291,132 @@ impl RangeSet {
 
         allocation.map(|(base, end, ptr)| {
             // Remove this range from the available set
-            self.remove(Range { start: base, end });
+            self.remove(Range {
+                start: base,
+                end: end,
+            });
 
             // Return out the pointer!
             ptr
         })
     }
-}
 
-/// Determines overlap of `a` and `b`. If there is overlap, returns the range
-/// of the overlap
-///
-/// In this overlap, returns:
-///
-/// [a.start -------------- a.end]
-///            [b.start -------------- b.end]
-///            |                 |
-///            ^-----------------^
-///            [ Return value    ]
-///
-fn overlaps(mut a: Range, mut b: Range) -> Option<Range> {
-    // Make sure range `a` is always lowest to biggest
-    if a.start > a.end {
-        core::mem::swap(&mut a.end, &mut a.start);
+    /// Finds if any ranges actually contain real data
+    pub fn any_valid(&self) -> bool {
+        self.entries()
+            .into_iter()
+            .any(|r| r.start != 0 || r.end != 0)
+    }
+    // Finds the largest item in the `RangeSet`
+    pub fn largest(&self) -> Option<&Range> {
+        self.entries().into_iter().max_by_key(|r| r.size())
     }
 
-    // Make sure range `b` is always lowest to biggest
-    if b.start > b.end {
-        core::mem::swap(&mut b.end, &mut b.start);
-    }
-
-    // Check if there is overlap
-    if a.start <= b.end && b.start <= a.end {
-        Some(Range {
-            start: core::cmp::max(a.start, b.start),
-            end: core::cmp::min(a.end, b.end),
-        })
-    } else {
-        None
+    /// Gets the total size of all entries in the `RangeSet`
+    pub fn total_size(&self) -> u64 {
+        let mut total = 0;
+        self.entries().into_iter().for_each(|r| total += r.size());
+        total
     }
 }
 
-/// Returns true if the entirity of `a` is contained inside `b`, else
-/// returns false.
-fn contains(mut a: Range, mut b: Range) -> bool {
-    // Make sure range `a` is always lowest to biggest
-    if a.start > a.end {
-        core::mem::swap(&mut a.end, &mut a.start);
+use core::fmt;
+
+impl fmt::Debug for Range {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[derive(Debug)]
+        struct Range {
+            start: u64,
+            end: u64,
+        }
+
+        let s = self.size() as f64;
+        let (size_fmt, unit) = if s > 1024.0 * 1024.0 * 1024.0 {
+            (s / 1024.0 / 1024.0 / 1024.0, "KiB")
+        } else if s > 1024.0 * 1024.0 {
+            (s / 1024.0 / 1024.0, "MiB")
+        } else {
+            (s / 1024.0, "KiB")
+        };
+
+        f.write_fmt(format_args!(
+            "Start: {:#x?}\nEnd: {:#x?}\nSize: {:#5.1?} {}",
+            self.start, self.end, size_fmt, unit
+        ))
+    }
+}
+
+// We only want to implement printing of actually real
+// entries
+impl fmt::Debug for RangeSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("RangeSet");
+        for r in self.entries() {
+            if r.non_zero() {
+                let _ = r.size();
+                s.field("Range", r);
+            }
+        }
+        s.finish()
+    }
+}
+
+impl Range {
+    /// Determines overlap of `a` and `b`. If there is overlap, returns the range
+    /// of the overlap
+    ///
+    /// In this overlap, returns:
+    ///
+    /// [a.start -------------- a.end]
+    ///            [b.start -------------- b.end]
+    ///            |                 |
+    ///            ^-----------------^
+    ///            [ Return value    ]
+    ///
+    fn overlaps(mut a: Range, mut b: Range) -> Option<Range> {
+        // Make sure range `a` is always lowest to biggest
+        if a.start > a.end {
+            core::mem::swap(&mut a.end, &mut a.start);
+        }
+
+        // Make sure range `b` is always lowest to biggest
+        if b.start > b.end {
+            core::mem::swap(&mut b.end, &mut b.start);
+        }
+
+        // Check if there is overlap
+        if a.start <= b.end && b.start <= a.end {
+            Some(Range {
+                start: core::cmp::max(a.start, b.start),
+                end: core::cmp::min(a.end, b.end),
+            })
+        } else {
+            None
+        }
     }
 
-    // Make sure range `b` is always lowest to biggest
-    if b.start > b.end {
-        core::mem::swap(&mut b.end, &mut b.start);
+    /// Returns true if the entirity of `a` is contained inside `b`, else
+    /// returns false.
+    fn contains(mut a: Range, mut b: Range) -> bool {
+        // Make sure range `a` is always lowest to biggest
+        if a.start > a.end {
+            core::mem::swap(&mut a.end, &mut a.start);
+        }
+
+        // Make sure range `b` is always lowest to biggest
+        if b.start > b.end {
+            core::mem::swap(&mut b.end, &mut b.start);
+        }
+
+        a.start >= b.start && a.end <= b.end
     }
 
-    a.start >= b.start && a.end <= b.end
+    #[inline]
+    fn non_zero(&self) -> bool {
+        self.start != 0 || self.end != 0
+    }
+    #[inline]
+    pub fn size(&self) -> u64 {
+        self.end - self.start
+    }
 }

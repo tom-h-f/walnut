@@ -1,4 +1,5 @@
-#[cfg(target_arch = "x86_64")]
+//! This module exports the same API across architectures
+//! depending on the target architecture.
+
 pub mod x86_64;
-#[cfg(target_arch = "x86_64")]
-pub use self::x86_64::idt;
+pub use x86_64::*;

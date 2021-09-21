@@ -3,9 +3,8 @@
 #[macro_export]
 macro_rules! dump_state {
     () => {
-        use crate::efi_println;
-        let s = $crate::arch::x86_64::SysState::new().unwrap();
-        efi_println!("{:#016x?}", s);
+        let s = walnut::arch::x86_64::register::SysState::new().unwrap();
+        walnut::println!("{:#016x?}", s);
     };
 }
 
@@ -276,7 +275,7 @@ impl RFlags {
     pub fn write_raw(val: u64) {
         unsafe {
             asm!(
-                "pushq {0}",
+                "push {0}",
                 "popf",
                 in(reg) val
             );

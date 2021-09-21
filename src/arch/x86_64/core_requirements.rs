@@ -1,5 +1,7 @@
+//! This module fufills the requirements of memory functions required to build
+//! Rust
+
 #[no_mangle]
-#[cfg(target_arch = "x86_64")]
 pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
     asm!("rep movsb",
          inout("rcx") n => _,
@@ -10,7 +12,6 @@ pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut
 
 // One-byte memset, very inefficent for large sizes, but will extend this later.
 #[no_mangle]
-#[cfg(target_arch = "x86_64")]
 pub unsafe extern "C" fn memset(dest: *mut u8, byte: u32, n: usize) -> *mut u8 {
     asm!(
     "rep stosb",
@@ -24,7 +25,6 @@ pub unsafe extern "C" fn memset(dest: *mut u8, byte: u32, n: usize) -> *mut u8 {
 // TODO implement large memset (from here: https://msrc-blog.microsoft.com/2021/01/11/building-faster-amd64-memset-routines/)
 
 #[no_mangle]
-#[cfg(target_arch = "x86_64")]
 pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
     let mut i = 0;
     while i < n {
@@ -44,7 +44,6 @@ pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
 }
 
 #[no_mangle]
-#[cfg(target_arch = "x86_64")]
 pub unsafe extern "C" fn memmove(dest: *mut u8, src: *mut u8, n: usize) -> usize {
     let su = src as usize;
     let du = dest as usize;
