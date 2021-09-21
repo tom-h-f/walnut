@@ -1,6 +1,5 @@
-use super::{Result, Error, EFI_PAGE_SIZE, EfiSystemTable};
-use crate::memory::MemoryRange;
-
+use super::{EfiSystemTable, Error, Result, EFI_PAGE_SIZE};
+use crate::memory::{Range, RangeSet};
 
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
@@ -92,8 +91,7 @@ impl EfiMemoryType {
     }
 }
 
-
-pub fn get_memory_map(st: &EfiSystemTable) -> Result<(MemoryRange, u64)> {
+pub fn get_memory_map(st: &EfiSystemTable) -> Result<(RangeSet, u64)> {
     // Declare variables so we can send them to `get_memory_map`
     // to receive the mutated values back
     let mut memory_map = [0u8; 8 * 1024];
@@ -102,14 +100,20 @@ pub fn get_memory_map(st: &EfiSystemTable) -> Result<(MemoryRange, u64)> {
     let mut desc_size = 0;
     let mut desc_ver = 0;
 
-    let ret = unsafe { 
-             ((*st.boot_services).get_memory_map)(&mut mmap_size, &mut memory_map as *mut u8,                                                 &mut key, &mut desc_size, &mut desc_ver)
+    let ret = unsafe {
+        ((*st.boot_services).get_memory_map)(
+            &mut mmap_size,
+            &mut memory_map as *mut u8,
+            &mut key,
+            &mut desc_size,
+            &mut desc_ver,
+        )
     };
-    if ret.0 != 0  {
+    if ret.0 != 0 {
         return Err(Error::CouldntGetMemoryMap(ret));
-    }  
+    }
 
-    let mut mr = MemoryRange::new();
+    let mut rs = RangeSet::new();
 
     // Walk through the buffer, and find the largest region
     // store this information and return it.
@@ -118,24 +122,24 @@ pub fn get_memory_map(st: &EfiSystemTable) -> Result<(MemoryRange, u64)> {
         // information since after `get_memory_map` is called, we cannot use
         // any of the handles in the system table (console_out is used to print
         // pre-boot)
-        //
+
         let entry = unsafe {
-            core::ptr::read_unaligned(memory_map[offset as usize..].as_ptr() as *const EfiMemoryDescriptor)
+            core::ptr::read_unaligned(
+                memory_map[offset as usize..].as_ptr() as *const EfiMemoryDescriptor
+            )
         };
         let r#type: EfiMemoryType = entry.typ.into();
-        if r#type.available_post_exit_boot_services() && 
-        ((entry.physical_start + (entry.number_of_pages * EFI_PAGE_SIZE)) - entry.physical_start) > mr.size()  {
-            mr.start = entry.physical_start;
-            mr.end = entry.physical_start + (entry.number_of_pages * EFI_PAGE_SIZE);
+        if r#type.available_post_exit_boot_services() {
+            let start = entry.physical_start;
+            let end = entry.physical_start + (entry.number_of_pages * EFI_PAGE_SIZE);
+            rs.insert(Range { start, end });
         }
     }
 
     // Check we actually found a valid memory area
-    if mr.start == 0 || mr.end == 0 {
-        return Err(Error::NoValidMemoryArea)
+    if !rs.any_valid() {
+        return Err(Error::NoValidMemoryArea);
     }
 
-    Ok((mr, key))
-
-
+    Ok((rs, key))
 }
