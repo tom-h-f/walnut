@@ -9,14 +9,13 @@
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 
-use walnut::
-{
+use walnut::{
     efi::{
         self,
         structures::{EfiHandle, EfiSystemTable},
-    }, 
+    },
     memory::RangeSet,
-} ;
+};
 
 /// Entry point of that UEFI calls.
 ///
@@ -41,7 +40,7 @@ pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTabl
 }
 
 /// Entry point of the kernel
-pub fn kmain(memory_range: RangeSet)  {
+pub fn kmain(memory_range: RangeSet) {
     walnut::println!("{:#x?}", memory_range);
     walnut::println!("{:#x?}", memory_range.total_size());
     walnut::println!("Largest: {:#x?}", memory_range.largest().unwrap());
