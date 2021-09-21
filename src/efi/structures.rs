@@ -1,5 +1,4 @@
 use core::sync::atomic::{AtomicPtr, Ordering};
-use super::memory::{EfiMemoryDescriptor, EfiMemoryType};
 
 pub const EFI_PAGE_SIZE: u64 = 4096;
 
@@ -28,7 +27,8 @@ pub unsafe fn register_system_table(system_table: *mut EfiSystemTable) -> Result
             system_table,
             Ordering::SeqCst,
             Ordering::SeqCst,
-        ).map_or(Err(Error::CouldntRegisterSystemTable), |_| Ok(()))
+        )
+        .map_or(Err(Error::CouldntRegisterSystemTable), |_| Ok(()))
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -181,7 +181,6 @@ pub struct EfiConfigurationTable {
     pub table: usize,
 }
 
-
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
 pub struct EfiTableHeader {
@@ -192,22 +191,18 @@ pub struct EfiTableHeader {
     reserved: u32,
 }
 
-
-
 pub fn load_system_table() -> Result<&'static EfiSystemTable> {
-     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
-     if st.is_null() {
-         Err(Error::CouldntAccessSystemTable)
-     } else { 
-         // If non-null deference the pointer and return a reference to it.
-         unsafe { 
-             Ok(&*st) 
-         } 
-     }
+    let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
+    if st.is_null() {
+        Err(Error::CouldntAccessSystemTable)
+    } else {
+        // If non-null deference the pointer and return a reference to it.
+        unsafe { Ok(&*st) }
+    }
 }
 
 pub fn destroy_system_table() {
-     EFI_SYSTEM_TABLE.store(core::ptr::null_mut(), Ordering::SeqCst);
+    EFI_SYSTEM_TABLE.store(core::ptr::null_mut(), Ordering::SeqCst);
 }
 
 pub fn exit_boot_service_int(st: &EfiSystemTable, handle: EfiHandle, key: u64) -> Result<()> {
@@ -219,7 +214,6 @@ pub fn exit_boot_service_int(st: &EfiSystemTable, handle: EfiHandle, key: u64) -
 
     Ok(())
 }
-
 
 #[cfg(test)]
 mod test {
@@ -243,10 +237,9 @@ mod test {
         let st = load_system_table();
         if st.is_err() {
             return;
-        } 
+        }
         unsafe {
             ((*st.unwrap().boot_services).get_memory_map)(&mut 0, &mut 0, &mut 0, &mut 0, &mut 0);
         }
     }
-
 }

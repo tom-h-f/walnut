@@ -2,7 +2,7 @@ use crate::memory::align_up;
 
 struct ListNode {
     size: u64,
-    next: Option<&'static mut ListNode>
+    next: Option<&'static mut ListNode>,
 }
 
 impl ListNode {
@@ -43,7 +43,10 @@ impl LinkedListAllocator {
     /// Adds the given memory region to the front of the list.
     unsafe fn add_free_region(&mut self, addr: u64, size: u64) {
         // ensure that the freed region is capable of holding ListNode
-        assert_eq!(align_up(addr, core::mem::align_of::<ListNode>() as u64) , addr);
+        assert_eq!(
+            align_up(addr, core::mem::align_of::<ListNode>() as u64),
+            addr
+        );
         assert!(size >= core::mem::size_of::<ListNode>() as u64);
 
         // create a new list node and append it at the start of the list
@@ -58,9 +61,7 @@ impl LinkedListAllocator {
     /// it from the list.
     ///
     /// Returns a tuple of the list node and the start address of the allocation.
-    fn find_region(&mut self, size: u64, align: u64)
-        -> Option<(&'static mut ListNode, u64)>
-    {
+    fn find_region(&mut self, size: u64, align: u64) -> Option<(&'static mut ListNode, u64)> {
         // reference to current list node, updated for each iteration
         let mut current = &mut self.head;
         // look for a large enough memory region in linked list
@@ -85,9 +86,7 @@ impl LinkedListAllocator {
     /// alignment.
     ///
     /// Returns the allocation start address on success.
-    fn alloc_from_region(region: &ListNode, size: u64, align: u64)
-        -> Result<u64, ()>
-    {
+    fn alloc_from_region(region: &ListNode, size: u64, align: u64) -> Result<u64, ()> {
         let alloc_start = align_up(region.start_addr(), align);
         let alloc_end = alloc_start.checked_add(size).ok_or(())?;
 
@@ -120,7 +119,6 @@ impl LinkedListAllocator {
     }
 }
 
-
 use super::Locked;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr;
@@ -149,7 +147,4 @@ unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
 
         self.lock().add_free_region(ptr as u64, size)
     }
-
-
 }
-
