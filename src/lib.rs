@@ -26,6 +26,16 @@ pub mod io;
 pub mod memory;
 pub use memory::{PhysAddr, VirtAddr};
 
+use spin::Mutex;
+
+pub struct KernelInfo {
+    memory_map: memory::RangeSet,
+    acpi_table: 
+
+}
+
+//TODO pub static KINFO: spin::Mutex<arc
+
 // --------------------------------------------------
 // Testing
 // --------------------------------------------------

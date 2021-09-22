@@ -26,5 +26,7 @@ pub unsafe fn exit_boot_services(handle: EfiHandle) -> Result<RangeSet> {
     // Perform the exit
     exit_boot_service_int(st, handle, key)?;
 
+    let acpi_table = acpi::get_acpi_table();
+
     Ok(memory_map)
 }

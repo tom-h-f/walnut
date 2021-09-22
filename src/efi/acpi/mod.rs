@@ -1,5 +1,7 @@
 use super::*;
 
+pub mod structures;
+
 pub fn get_acpi_table() -> Option<PhysAddr> {
     // ACPI 2.0 GUID
     const EFI_ACPI_TABLE_GUID: EfiGuid = EfiGuid(
