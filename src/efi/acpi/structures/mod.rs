@@ -1,4 +1,4 @@
-use crate::mm::{self, PhysAddr};
+use crate::memory::{self, PhysAddr};
 use core::fmt;
 use core::mem::size_of;
 
@@ -133,20 +133,20 @@ impl Table {
     /// `size` is the size of `table`'s payload
     ///
     /// `Err(err)` - An `acpi::structures::Error` indicating what went wrong
-    pub unsafe fn from_addr(addr: PhysAddr) -> Result<(Self, TableType, PhysAddr, usize)> {
+    pub unsafe fn from_addr(addr: PhysAddr) -> Result<(Self, TableType, PhysAddr, u64)> {
         // Read the table
-        let table = mm::readp::<Self>(addr);
+        let table = crate::memory::readp::<PhysAddr, Self>(addr);
 
         // Get the type of this table
         let r#type = TableType::from(table.signature);
 
-        compute_checksum(addr, table.length as usize, r#type)?;
+        compute_checksum(addr, table.length as u64, r#type)?;
 
-        let header_size = size_of::<Self>();
+        let header_size = size_of::<Self>() as u64;
 
         // Compute the address of the table's payload and
         // the size of it in bytes
-        let payload_size = (table.length as usize)
+        let payload_size = (table.length as u64)
             .checked_sub(header_size)
             .ok_or(Error::LengthMismatch(r#type))?;
         let payload_addr = PhysAddr(
@@ -162,13 +162,13 @@ impl Table {
 pub struct Rsdt {
     table: Table,
     /// this points to Other SDT
-    other_sdt_ptr: usize,
+    other_sdt_ptr: u64,
 }
 /// Computes a checksum by caluclating the sum of all bytes in `addr..(addr + size)`,
 /// returns `Ok` if `sum == 0`
-unsafe fn compute_checksum(addr: PhysAddr, size: usize, r#type: TableType) -> Result<()> {
+unsafe fn compute_checksum(addr: PhysAddr, size: u64, r#type: TableType) -> Result<()> {
     let chk = (0..size).fold(0u8, |acc, offset| {
-        acc.wrapping_add(unsafe { mm::readp::<u8>(PhysAddr(addr.0 + offset)) })
+        acc.wrapping_add(unsafe { memory::readp::<PhysAddr, u8>(PhysAddr(addr.0 + offset as u64)) })
     });
     if chk != 0 {
         Err(Error::ChecksumMismatch(r#type))

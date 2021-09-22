@@ -1,5 +1,5 @@
 use super::{compute_checksum, Error, Result, TableType};
-use crate::mm::{self, PhysAddr};
+use crate::memory::{self, PhysAddr};
 use core::mem::size_of;
 
 #[repr(C, packed)]
@@ -28,9 +28,9 @@ impl fmt::Debug for Rsdp {
 
 impl Rsdp {
     pub unsafe fn from_addr(addr: PhysAddr) -> Result<Self> {
-        let rsdp = mm::readp::<Rsdp>(addr);
+        let rsdp = memory::readp::<PhysAddr, Rsdp>(addr);
 
-        compute_checksum(addr, size_of::<Self>(), TableType::Rsdp)?;
+        compute_checksum(addr, size_of::<Self>() as u64, TableType::Rsdp)?;
 
         rsdp.check_signature()?;
 
@@ -57,7 +57,7 @@ impl Rsdp {
 pub struct RsdpExtended {
     pub descriptor: Rsdp,
     pub length: u32,
-    pub xsdt_address: usize,
+    pub xsdt_address: u64,
     pub extended_checksum: u8,
     _reserved: [u8; 3],
 }
@@ -72,11 +72,11 @@ impl RsdpExtended {
         rsdp.check_revision()?;
 
         // Read the Extended RSDP
-        let rsdp = mm::readp::<RsdpExtended>(addr);
+        let rsdp = memory::readp::<PhysAddr, RsdpExtended>(addr);
 
         rsdp.check_length()?;
 
-        compute_checksum(addr, size_of::<Self>(), TableType::RsdpExtended)?;
+        compute_checksum(addr, size_of::<Self>() as u64, TableType::RsdpExtended)?;
 
         Ok(rsdp)
     }

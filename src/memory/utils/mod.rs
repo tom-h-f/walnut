@@ -1,5 +1,9 @@
-gub mod addr;
+pub mod addr;
 pub mod rangeset;
+
+use super::Addr;
+
+
 
 pub use rangeset::{Range, RangeSet};
 
@@ -48,24 +52,24 @@ fn alloc_error_handler(layout: core::alloc::Layout) -> ! {
 
 /// Reads `T` at physical address `addr`
 #[inline(always)]
-pub unsafe fn readp<T>(addr: PhysAddr) -> T {
-    core::ptr::read(addr.0 as *mut T)
+pub unsafe fn readp<A, T>(addr: A) -> T where A: Addr {
+    core::ptr::read(addr.as_u64() as *mut T)
 }
 
 /// Writes `val` at physical address `addr`
 #[inline(always)]
-pub unsafe fn writep<T>(addr: PhysAddr, val: T) {
-    core::ptr::write(addr.0 as *mut T, val)
+pub unsafe fn writep<A, T>(addr: A, val: T) where A: Addr {
+    core::ptr::write(addr.as_u64() as *mut T, val)
 }
 
 /// Reads `T` at unaligned physical address `addr`
 #[inline(always)]
-pub unsafe fn readpu<T>(addr: PhysAddr) -> T {
-    core::ptr::read_unaligned(addr.0 as *mut T)
+pub unsafe fn readpu<A, T>(addr: A) -> T  where A: Addr {
+    core::ptr::read_unaligned(addr.as_u64() as *mut T)
 }
 
 /// Writes `val` at unaligned physical address `addr`
 #[inline(always)]
-pub unsafe fn writepu<T>(addr: PhysAddr, val: T) {
-    core::ptr::write_unaligned(addr.0 as *mut T, val)
+pub unsafe fn writepu<A, T>(addr: A, val: T) where A: Addr {
+    core::ptr::write_unaligned(addr.as_u64() as *mut T, val)
 }

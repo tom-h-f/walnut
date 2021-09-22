@@ -26,8 +26,11 @@ use walnut::{
 /// from raw physical memory.
 #[no_mangle]
 pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
-    efi::init(&mut *st).expect("Couldnt intialize EFI structures");
+    efi::init(&mut *st).expect("Couldn't intialize UEFI");
     let memory_range = efi::exit_boot_services(handle).expect("Unable to exit UEFI boot services");
+
+    // Intialize ACPI Tables
+    efi::acpi::init().expect("Couldn't intialize ACPI");
 
     // Run tests after we exit UEFI boot services
     #[cfg(test)]
