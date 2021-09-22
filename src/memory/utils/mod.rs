@@ -1,4 +1,4 @@
-pub mod addr;
+gub mod addr;
 pub mod rangeset;
 
 pub use rangeset::{Range, RangeSet};
@@ -44,4 +44,28 @@ where
 #[alloc_error_handler]
 fn alloc_error_handler(layout: core::alloc::Layout) -> ! {
     panic!("Allocator Error {:#x?}", layout);
+}
+
+/// Reads `T` at physical address `addr`
+#[inline(always)]
+pub unsafe fn readp<T>(addr: PhysAddr) -> T {
+    core::ptr::read(addr.0 as *mut T)
+}
+
+/// Writes `val` at physical address `addr`
+#[inline(always)]
+pub unsafe fn writep<T>(addr: PhysAddr, val: T) {
+    core::ptr::write(addr.0 as *mut T, val)
+}
+
+/// Reads `T` at unaligned physical address `addr`
+#[inline(always)]
+pub unsafe fn readpu<T>(addr: PhysAddr) -> T {
+    core::ptr::read_unaligned(addr.0 as *mut T)
+}
+
+/// Writes `val` at unaligned physical address `addr`
+#[inline(always)]
+pub unsafe fn writepu<T>(addr: PhysAddr, val: T) {
+    core::ptr::write_unaligned(addr.0 as *mut T, val)
 }
