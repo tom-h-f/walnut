@@ -14,6 +14,8 @@ pub enum Error {
     CouldntRegisterSystemTable,
     CouldntExitBootService(EfiStatus),
     CouldntGetMemoryMap(EfiStatus),
+    CouldntSetVirtualAddressMap(EfiStatus),
+    MemoryMapInvalidSize,
     Unknown(u64),
 }
 
@@ -166,11 +168,23 @@ pub struct EfiSystemTable {
 
     console_err: *const EfiSimpleTextOutputProtocol,
 
-    _runtime_services: usize,
+    pub runtime_services: *const EfiRuntimeService,
 
     pub boot_services: *const EfiBootServices,
     pub number_of_tables: usize,
     pub tables: *const EfiConfigurationTable,
+}
+
+#[repr(C)]
+pub struct EfiRuntimeService {
+    header: EfiTableHeader,
+    get_time: u64,
+    set_time: u64,
+    get_wakeup_time: u64,
+    set_wakeup_time: u64,
+    pub set_virtual_address_map: unsafe fn (MemoryMapSize: usize, DescriptorSize: usize, 
+                                     DescriptorVersion: u64, *const [super::memory::EfiMemoryDescriptor]) 
+                                          -> EfiStatus,
 }
 
 #[derive(Debug)]
