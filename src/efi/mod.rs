@@ -28,8 +28,7 @@ pub unsafe fn exit_boot_services(handle: EfiHandle) -> Result<RangeSet> {
     exit_boot_service_int(st, handle, key)?;
 
     // Identity map physical memory at +10 TiB
-    let offset = (((1024 * 1024) * 1024) * 1024) * 10;
-    memory::set_memory_map(st, &mut memory_map, offset)?;
+    memory::set_memory_map(st, &mut memory_map, crate::IDENTITY_MAP_OFFSET)?;
 
 
     Ok(memory_map)

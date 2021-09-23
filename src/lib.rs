@@ -24,7 +24,13 @@ pub mod efi;
 pub mod io;
 
 pub mod memory;
+use memory::allocator::FrameAllocator;
 pub use memory::{PhysAddr, VirtAddr};
+
+pub use alloc::*;
+pub use alloc::boxed::Box;
+
+pub const IDENTITY_MAP_OFFSET: u64 = (((1024 * 1024) * 1024) * 1024) * 10;
 
 
 // Macros
@@ -43,12 +49,36 @@ macro_rules! whereami {
     };
 }
 
-=======
-use spin::Mutex;
 
-pub struct KernelInfo {
-    memory_map: memory::RangeSet,
+#[macro_export]
+macro_rules! dump_stack {
+    () => {
+        walnut::println!("Dumping 1024 bytes from stack: ");
+        // Get stack pointer
+        let rsp = walnut::arch::register::read("rsp").unwrap();
+        // Read 1024 bytes from stack pointer
+        let data = unsafe {
+            *(rsp as *const [u8; 1024])
+        };
+        for i in (0..data.len()).step_by(16) {
+            for j in 0..16 {
+                walnut::print!("{:02X?} ", data[i+j]);
+                if j == 15 {
+                    walnut::print!("\n");
+                } else if j == 7 {
+                    walnut::print!("\t");
+                }
+            }
+        }
+    }
 }
+
+#[derive(Debug)]
+pub struct KernelInfo {
+    pub memory_map: memory::RangeSet,
+    pub frame_allocator: FrameAllocator,
+}
+
 
 //TODO pub static KINFO: spin::Mutex<arc
 

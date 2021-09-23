@@ -9,13 +9,11 @@
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 
-use walnut::{
-    efi::{
+use walnut::{KernelInfo, efi::{
         self,
         structures::{EfiHandle, EfiSystemTable},
-    },
-    memory::RangeSet,
-};
+    }, memory, println};
+
 
 /// Entry point of that UEFI calls.
 ///
@@ -27,26 +25,39 @@ use walnut::{
 #[no_mangle]
 pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTable) -> u64 {
     efi::init(&mut *st).expect("Couldn't intialize UEFI");
-    let memory_range = efi::exit_boot_services(handle).expect("Unable to exit UEFI boot services");
+    let memory_map = efi::exit_boot_services(handle).expect("Unable to exit UEFI boot services");
 
     // Intialize ACPI Tables
     efi::acpi::init().expect("Couldn't intialize ACPI");
+    let frame_allocator = memory::init(*memory_map.largest()
+    .expect("Couldn't get largest memory range"))
+    .expect("Couldn't intialize frame allocator");
 
-    // Run tests after we exit UEFI boot services
-    #[cfg(test)]
-    test_main();
+    // Create kernel_info to pass into the kernel main
+    let kinfo = KernelInfo {
+        memory_map,
+        frame_allocator,
+    };
+
 
     // Call kernel main and supply the memory range obtained from
     // GetMemoryMap
-    kmain(memory_range);
+    kmain(kinfo);
     unreachable!();
 }
 
 /// Entry point of the kernel
-pub fn kmain(memory_range: RangeSet) {
-    walnut::println!("{:#x?}", memory_range);
-    walnut::println!("{:#x?}", memory_range.total_size());
-    walnut::println!("Largest: {:#x?}", memory_range.largest().unwrap());
+pub fn kmain(kinfo: KernelInfo) {
+
+    #[cfg(test)]
+    test_main();
+
+    println!("{:#X?}", kinfo);
+
+    let a = walnut::Box::new(41);
+    println!("{}", a);
+
+
 
     panic!("reached end of kmain")
 }
@@ -61,7 +72,6 @@ fn panic_handler(_info: &core::panic::PanicInfo) -> ! {
     if let Some(msg) = _info.message() {
         walnut::println!("Message:  {}", msg);
     }
-    walnut::dump_state!();
     // Exit QEMU
     qemu::exit_failed();
     unreachable!()

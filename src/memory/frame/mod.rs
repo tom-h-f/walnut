@@ -12,7 +12,7 @@ pub use range::{PhysFrameRange, PhysFrameRangeInclusive};
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct PhysFrame<S: PageSize = Size4KiB> {
-    pub(crate) start_address: PhysAddr, // TODO: remove when start_address() is const
+    pub(crate) start_address: PhysAddr,
     size: PhantomData<S>,
 }
 

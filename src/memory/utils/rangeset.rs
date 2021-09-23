@@ -1,18 +1,8 @@
 use core::cmp;
+use super::super::paging::PAGE_SIZE;
 
 use crate::efi::memory::EfiMemoryDescriptor;
 
-
-
-/// An inclusive range. We do not use `RangeInclusive` as it does not implement
-/// `Copy`
-#[derive(Clone, Copy, Default)]
-#[repr(C)]
-pub struct Range {
-    pub start: u64,
-    pub end: u64,
-    pub descriptor: EfiMemoryDescriptor,
-}
 
 /// A set of non-overlapping inclusive `u64` ranges
 #[derive(Clone, Copy)]
@@ -310,7 +300,7 @@ impl RangeSet {
 
     pub fn id_map(&mut self, offset: u64) {
         self.ranges[..self.in_use as usize].iter_mut().for_each(|r| {
-            r.descriptor.virtual_start = r.descriptor.physical_start + offset;
+            r.descriptor.virtual_start = super::align_down(r.descriptor.physical_start + offset, PAGE_SIZE);
         });
     }
 
@@ -369,6 +359,17 @@ impl fmt::Debug for RangeSet {
     }
 }
 
+/// An inclusive range. We do not use `RangeInclusive` as it does not implement
+/// `Copy`
+#[derive(Clone, Copy, Default)]
+#[repr(C)]
+pub struct Range {
+    pub start: u64,
+    pub end: u64,
+    pub descriptor: EfiMemoryDescriptor,
+}
+
+
 impl Range {
     /// Determines overlap of `a` and `b`. If there is overlap, returns the range
     /// of the overlap
@@ -426,6 +427,7 @@ impl Range {
     fn non_zero(&self) -> bool {
         self.start != 0 || self.end != 0
     }
+    /// The size of the range, in bytes
     #[inline]
     pub fn size(&self) -> u64 {
         self.end - self.start

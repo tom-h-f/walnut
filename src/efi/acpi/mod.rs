@@ -52,7 +52,6 @@ pub unsafe fn init() -> Result<()> {
     // Read the ACPI table at the base address
     let rsdp = RsdpExtended::from_addr(rsdp_addr)?;
 
-    crate::println!("{:#x?}", rsdp);
 
     // Get XSDT
     let (_xsdt, typ, x_addr, len) = Table::from_addr(PhysAddr(rsdp.xsdt_address))?;
@@ -64,8 +63,6 @@ pub unsafe fn init() -> Result<()> {
     if (len % size_of::<u64>() as u64) != 0 {
         return Err(Error::XsdtBadEntries);
     }
-
-    crate::println!("{:#x?}", _xsdt);
 
     let entries = len / size_of::<u64>() as u64;
 
@@ -85,15 +82,12 @@ pub unsafe fn init() -> Result<()> {
         match typ {
             TableType::Madt => {
                 let _madt = Madt::from_addr(addr, len)?;
-                crate::println!("{:#x?}", _madt);
             },
             TableType::Rsdp => {
                 let _rsdp = Rsdp::from_addr(addr)?;
-                crate::println!("{:#x?}", _rsdp);
             },
             TableType::RsdpExtended => {
                 let _rsdp = RsdpExtended::from_addr(addr)?;
-                crate::println!("{:#x?}", _rsdp);
             },
             _ => {},
         }
