@@ -1,14 +1,9 @@
-mod linked_list;
+pub mod linked_list;
 pub mod page;
-
-use linked_list::LinkedListAllocator;
 
 pub use super::{Error, Result};
 
 pub const PAGE_SIZE: u64 = 4096;
-
-#[global_allocator]
-pub static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
 
 /// A wrapper around spin::Mutex to permit trait implementations.
 pub struct Locked<A> {

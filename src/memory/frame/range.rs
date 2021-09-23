@@ -4,7 +4,7 @@ use core::fmt;
 /// An range of physical memory frames, exclusive the upper bound.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-pub struct PhysFrameRange<S: PageSize = Size4KiB> {
+pub struct PhysFrameRange<S: PageSize = Size4KiB > {
     /// The start of the range, inclusive.
     pub start: PhysFrame<S>,
     /// The end of the range, exclusive.

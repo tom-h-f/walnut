@@ -4,7 +4,7 @@ use core::mem::size_of;
 use super::readpu;
 
 
-pub trait Addr {
+pub trait Addr{
     fn as_u64(self) -> u64;
 }
 

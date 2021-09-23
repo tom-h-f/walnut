@@ -26,6 +26,24 @@ pub mod io;
 pub mod memory;
 pub use memory::{PhysAddr, VirtAddr};
 
+
+// Macros
+
+#[macro_export]
+macro_rules! whereami {
+    () => {
+        {
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            core::any::type_name::<T>()
+        }
+        let name = type_name_of(f);
+        crate::println!("{}:{}", &name[..name.len() - 3], line!());
+        }
+    };
+}
+
+=======
 use spin::Mutex;
 
 pub struct KernelInfo {
@@ -107,3 +125,4 @@ fn vec_push() {
         //v.pop();
     }
 }
+
