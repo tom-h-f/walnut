@@ -1,4 +1,8 @@
-use core::{cmp, fmt::Debug};
+use core::cmp;
+
+use crate::efi::memory::EfiMemoryDescriptor;
+
+
 
 /// An inclusive range. We do not use `RangeInclusive` as it does not implement
 /// `Copy`
@@ -7,6 +11,7 @@ use core::{cmp, fmt::Debug};
 pub struct Range {
     pub start: u64,
     pub end: u64,
+    pub descriptor: EfiMemoryDescriptor,
 }
 
 /// A set of non-overlapping inclusive `u64` ranges
@@ -14,21 +19,22 @@ pub struct Range {
 #[repr(C)]
 pub struct RangeSet {
     /// Fixed array of ranges in the set
-    ranges: [Range; 256],
+    pub ranges: [Range; 256],
 
     /// Number of in use entries in `ranges`
     ///
     /// This is not a usize to make the structure fixed size so we can pass it
     /// directly from protected mode to long mode. Since `ranges` is fixed u32
     /// is plenty large for this use.
-    in_use: u32,
+    pub in_use: u32,
+
 }
 
 impl RangeSet {
     /// Create a new empty RangeSet
-    pub const fn new() -> RangeSet {
+    pub fn new() -> RangeSet {
         RangeSet {
-            ranges: [Range { start: 0, end: 0 }; 256],
+            ranges: [Range { start: 0, end: 0, descriptor: EfiMemoryDescriptor::default() }; 256],
             in_use: 0,
         }
     }
@@ -73,10 +79,12 @@ impl RangeSet {
                     Range {
                         start: range.start,
                         end: range.end.saturating_add(1),
+                        descriptor: range.descriptor
                     },
                     Range {
                         start: ent.start,
                         end: ent.end.saturating_add(1),
+                        descriptor: ent.descriptor
                     },
                 )
                 .is_none()
@@ -115,7 +123,8 @@ impl RangeSet {
     /// such that there is no more overlap. If this results in a range in
     /// the set becoming empty, the range will be removed entirely from the
     /// set.
-    pub fn remove(&mut self, range: Range) {
+    pub fn remove(&mut self, start: u64, end: u64) {
+        let range = Range { start, end, descriptor: EfiMemoryDescriptor::default() };
         assert!(range.start <= range.end, "Invalid range shape");
 
         'try_subtractions: loop {
@@ -163,6 +172,7 @@ impl RangeSet {
                     self.ranges[self.in_use as usize] = Range {
                         start: ent.start,
                         end: range.start.saturating_sub(1),
+                        descriptor: range.descriptor
                     };
                     self.in_use += 1;
                     continue 'try_subtractions;
@@ -176,7 +186,7 @@ impl RangeSet {
     /// Subtracts a `RangeSet` from `self`
     pub fn subtract(&mut self, rs: &RangeSet) {
         for &ent in rs.entries() {
-            self.remove(ent);
+            self.remove(ent.start, ent.end);
         }
     }
 
@@ -291,21 +301,33 @@ impl RangeSet {
 
         allocation.map(|(base, end, ptr)| {
             // Remove this range from the available set
-            self.remove(Range {
-                start: base,
-                end: end,
-            });
+            self.remove(base, end);
 
             // Return out the pointer!
             ptr
         })
     }
 
+    pub fn id_map(&mut self, offset: u64) {
+        self.ranges[..self.in_use as usize].iter_mut().for_each(|r| {
+            r.descriptor.virtual_start = r.descriptor.physical_start + offset;
+        });
+    }
+
+    /// Returns how many of `descriptors` are in use.
+    pub fn to_descriptors<'a>(&self, descriptors: &mut [EfiMemoryDescriptor]) ->  usize {
+        
+        self.entries().iter().enumerate().for_each(|(ii, r)| {
+            descriptors[ii] = r.descriptor;
+        });
+
+        self.in_use as usize
+    }
+
+
     /// Finds if any ranges actually contain real data
     pub fn any_valid(&self) -> bool {
-        self.entries()
-            .into_iter()
-            .any(|r| r.start != 0 || r.end != 0)
+        self.in_use > 0
     }
     // Finds the largest item in the `RangeSet`
     pub fn largest(&self) -> Option<&Range> {
@@ -324,25 +346,11 @@ use core::fmt;
 
 impl fmt::Debug for Range {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        #[derive(Debug)]
-        struct Range {
-            start: u64,
-            end: u64,
-        }
-
-        let s = self.size() as f64;
-        let (size_fmt, unit) = if s > 1024.0 * 1024.0 * 1024.0 {
-            (s / 1024.0 / 1024.0 / 1024.0, "KiB")
-        } else if s > 1024.0 * 1024.0 {
-            (s / 1024.0 / 1024.0, "MiB")
-        } else {
-            (s / 1024.0, "KiB")
-        };
-
-        f.write_fmt(format_args!(
-            "Start: {:#x?}\nEnd: {:#x?}\nSize: {:#5.1?} {}",
-            self.start, self.end, size_fmt, unit
-        ))
+        f.debug_struct("Range")
+        .field("Start", &self.start)
+        .field("End", &self.end)
+        .field("Size (MiB)", &(self.size() as f32 / 1024.0 / 1024.0))
+        .finish()
     }
 }
 
@@ -385,15 +393,18 @@ impl Range {
         }
 
         // Check if there is overlap
+        // If there is we take EfiMemoryDescriptor from `a`
         if a.start <= b.end && b.start <= a.end {
             Some(Range {
                 start: core::cmp::max(a.start, b.start),
                 end: core::cmp::min(a.end, b.end),
+                descriptor: a.descriptor
             })
         } else {
             None
         }
     }
+
 
     /// Returns true if the entirity of `a` is contained inside `b`, else
     /// returns false.
@@ -420,3 +431,4 @@ impl Range {
         self.end - self.start
     }
 }
+
