@@ -3,6 +3,10 @@
   <img alt="Walnut Logo" src="assets/img/WalnutComplete.svg">
 </p>
 
+I am discountining this branch tsince allocing is fucking impossible with UEFI...
+I will just do BIOS 
+Keeping this branch alive in case i want to come back for bits of code however.
+
 
 
 
