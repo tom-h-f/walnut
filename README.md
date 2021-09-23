@@ -4,10 +4,6 @@
 </p>
 
 
-## URGENT TODOs
-
-- THE MEMORY MAP NEEDS TO CONTAIN THE EFIMEMORY DESCRIPTORS AND THEN THAT NEEDS TO BE USED TO CONSTRUCT ALL MEMORY REGIONS
-
 
 
 This is a hobby OS developed very slowly as I attempt to work on outside of a fulltime job and fulltime studying for a cybersecurity degree.
