@@ -1,5 +1,5 @@
 use super::{EfiSystemTable, Error, Result, EFI_PAGE_SIZE};
-use crate::memory::{Range, RangeSet};
+use crate::{memory::{Range, RangeSet}, print};
 
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
@@ -92,6 +92,7 @@ impl EfiMemoryType {
 }
 
 pub fn get_memory_map(st: &EfiSystemTable) -> Result<(RangeSet, u64)> {
+
     // Declare variables so we can send them to `get_memory_map`
     // to receive the mutated values back
     let mut memory_map = [0u8; 8 * 1024];
@@ -132,14 +133,51 @@ pub fn get_memory_map(st: &EfiSystemTable) -> Result<(RangeSet, u64)> {
         if r#type.available_post_exit_boot_services() {
             let start = entry.physical_start;
             let end = entry.physical_start + (entry.number_of_pages * EFI_PAGE_SIZE);
-            rs.insert(Range { start, end });
+            rs.insert(Range { start, end, descriptor: entry });
         }
     }
 
+    crate::whereami!();
     // Check we actually found a valid memory area
     if !rs.any_valid() {
         return Err(Error::NoValidMemoryArea);
     }
 
     Ok((rs, key))
+}
+
+/// Identity maps all memory at `offset` and then informs UEFI
+/// of this mapping, enabling it.
+pub fn set_memory_map(st: &EfiSystemTable, range_set: &mut RangeSet, offset: u64) -> Result<()> {
+
+    range_set.id_map(offset);
+
+    // Create a max size array, and then get the amount of 
+    // descriptors in use, and use that.
+    let mut fullmap = [EfiMemoryDescriptor::default(); 256];
+    let cnt = range_set.to_descriptors(&mut fullmap);
+    let map = &fullmap[..cnt];
+
+    for i in map {
+        crate::println!("{:#X?} -> {:#X?}", i.physical_start, i.virtual_start);
+    }
+
+    // Setup arguments for SetVirtualAddressMap 
+    let map_size = core::mem::size_of_val(map);
+    let desc_ver = 1;
+    let desc_size = core::mem::size_of::<EfiMemoryDescriptor>();
+
+    if desc_size * map.len() != map_size {
+        return Err(Error::MemoryMapInvalidSize)
+    }
+
+    unsafe {
+        let ret = ((*st.runtime_services).set_virtual_address_map)(map_size, desc_size, desc_ver, 
+                                                                map as *const [EfiMemoryDescriptor]);
+        if ret.0 != 0 {
+            return Err(Error::CouldntSetVirtualAddressMap(ret));
+        }
+    }
+
+    Ok(())
 }
