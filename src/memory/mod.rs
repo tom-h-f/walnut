@@ -1,6 +1,7 @@
 pub mod frame;
 pub mod paging;
 pub mod utils;
+pub mod allocator;
 
 pub use utils::{
     addr::{Addr, PhysAddr, VirtAddr},
@@ -11,7 +12,7 @@ pub use utils::{
 
 pub fn init_heap_allocator(memory_range: Range) {
     unsafe {
-        paging::ALLOCATOR
+        allocator::ALLOCATOR
             .lock()
             .init(memory_range.start, memory_range.end);
     }
