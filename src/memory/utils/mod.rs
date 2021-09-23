@@ -1,6 +1,10 @@
 pub mod addr;
 pub mod rangeset;
 
+use super::Addr;
+
+
+
 pub use rangeset::{Range, RangeSet};
 
 pub type Result<T> = core::result::Result<T, Error>;
@@ -44,4 +48,27 @@ where
 #[alloc_error_handler]
 fn alloc_error_handler(layout: core::alloc::Layout) -> ! {
     panic!("Allocator Error {:#x?}", layout);
+
+
+/// Reads `T` at physical address `addr`
+#[inline(always)]
+pub unsafe fn readp<A, T>(addr: A) -> T where A: Addr {
+    core::ptr::read(addr.as_u64() as *mut T)
 }
+
+/// Writes `val` at physical address `addr`
+#[inline(always)]
+pub unsafe fn writep<A, T>(addr: A, val: T) where A: Addr {
+    core::ptr::write(addr.as_u64() as *mut T, val)
+}
+
+/// Reads `T` at unaligned physical address `addr`
+#[inline(always)]
+pub unsafe fn readpu<A, T>(addr: A) -> T  where A: Addr {
+    core::ptr::read_unaligned(addr.as_u64() as *mut T)
+}
+
+/// Writes `val` at unaligned physical address `addr`
+#[inline(always)]
+pub unsafe fn writepu<A, T>(addr: A, val: T) where A: Addr {
+    core::ptr::write_unaligned(addr.as_u64() as *mut T, val)

@@ -43,6 +43,14 @@ macro_rules! whereami {
     };
 }
 
+=======
+use spin::Mutex;
+
+pub struct KernelInfo {
+    memory_map: memory::RangeSet,
+}
+
+//TODO pub static KINFO: spin::Mutex<arc
 
 // --------------------------------------------------
 // Testing

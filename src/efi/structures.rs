@@ -1,4 +1,6 @@
 use core::sync::atomic::{AtomicPtr, Ordering};
+use super::acpi::structures;
+use super::acpi::structures::TableType;
 
 pub const EFI_PAGE_SIZE: u64 = 4096;
 
@@ -16,7 +18,20 @@ pub enum Error {
     CouldntGetMemoryMap(EfiStatus),
     CouldntSetVirtualAddressMap(EfiStatus),
     MemoryMapInvalidSize,
+    IntegerOverflow,
+    XsdtBadEntries,
+    RsdpNotFound,
+    /// Found, Expected
+    TableTypeMismatch((TableType, TableType)),
+
+    AcpiError(structures::Error),
     Unknown(u64),
+}
+
+impl From<structures::Error> for Error {
+    fn from(val: structures::Error) -> Error {
+        Error::AcpiError(val)
+    }
 }
 
 /// Global EFI system table which is saved upon entry of the kernel.

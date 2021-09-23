@@ -1,5 +1,8 @@
 use super::{align_down, align_up};
 use crate::memory::paging::PAGE_SIZE;
+use core::mem::size_of;
+use super::readpu;
+
 
 pub trait Addr{
     fn as_u64(self) -> u64;
@@ -158,6 +161,67 @@ impl Addr for VirtAddr {
         self.0
     }
 }
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct PhysSlice(pub PhysAddr, pub usize);
+
+impl PhysSlice {
+    /// Create a new slice to physical memory
+    /// Returns `None` if we encounter an overflow or other
+    /// error in the address range asked for.
+    pub unsafe fn new(addr: PhysAddr, size: usize) -> Self {
+        Self(addr, size)
+    }
+
+    /// Get the remaining length of the slice
+    pub fn len(&self) -> usize {
+        self.1
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.1 == 0
+    }
+
+    /// Discard `bytes` from the slice by updating the pointer and length
+    pub fn discard(&mut self, bytes: u64) -> Result<(), ()> {
+        if self.1 >= bytes as usize {
+            // Update length
+            self.1 -= bytes as usize;
+            // and pointer
+            (self.0).0 += bytes ;
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    /// Read a `T` from the slice, updating the pointer and size.
+    pub unsafe fn consume<T>(&mut self) -> Result<T, ()> {
+        if self.1 < size_of::<T>() {
+            return Err(());
+        }
+
+        // read the data
+        let data = readpu::<PhysAddr, T>(self.0);
+
+        // Update length
+        self.1 -= size_of::<T>();
+        // and pointer
+        (self.0).0 += size_of::<T>() as u64;
+
+        Ok(data)
+    }
+
+    /// Reads a `T` from the slice, without updating the pointer or slice.
+    pub unsafe fn peek<T>(&self) -> Result<T, ()> {
+        if self.1 < size_of::<T>() {
+            Err(())
+        } else {
+            Ok(readpu::<PhysAddr, T>(self.0))
+        }
+    }
+}
+
 
 // Operations for Addrs
 

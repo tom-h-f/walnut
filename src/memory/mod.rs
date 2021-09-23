@@ -4,10 +4,10 @@ pub mod utils;
 pub mod allocator;
 
 pub use utils::{
-    addr::{Addr, PhysAddr, VirtAddr},
+    addr::{Addr, PhysAddr, VirtAddr, PhysSlice},
     align_down, align_up,
     rangeset::{Range, RangeSet},
-    Error, Result,
+    Error, Result, readp, readpu, writep, writepu
 };
 
 pub fn init_heap_allocator(memory_range: Range) {

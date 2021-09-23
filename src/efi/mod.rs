@@ -31,5 +31,6 @@ pub unsafe fn exit_boot_services(handle: EfiHandle) -> Result<RangeSet> {
     let offset = (((1024 * 1024) * 1024) * 1024) * 10;
     memory::set_memory_map(st, &mut memory_map, offset)?;
 
+
     Ok(memory_map)
 }
