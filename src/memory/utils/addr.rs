@@ -1,7 +1,7 @@
 use super::{align_down, align_up};
 use crate::memory::paging::PAGE_SIZE;
 
-pub trait Addr {
+pub trait Addr{
     fn as_u64(self) -> u64;
 }
 
