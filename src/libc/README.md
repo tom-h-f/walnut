@@ -1,5 +1,0 @@
-# C Lib
-
-
-## // TODO //
-- Makefile
