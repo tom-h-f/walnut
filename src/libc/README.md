@@ -1,6 +1,5 @@
-# Your C library folder
+# C Lib
 
-Create your C library in this folder.
 
 ## // TODO //
 - Makefile
