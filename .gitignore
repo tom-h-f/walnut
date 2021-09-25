@@ -11,7 +11,8 @@ build/
 
 **/tmp/
 tools/**
-!tools/*.sh
-!tools/vagrant/
-!tools/vagrant/**
+tools/*.sh
+tools/vagrant/
+tools/vagrant/**
 .vagrant/
+/Build/
