@@ -6,6 +6,7 @@
 #include "efi/types.h"
 #include "efi/error.h"
 #include "efi/table.h"
+#include "efi/memory.h"
 
  
 
