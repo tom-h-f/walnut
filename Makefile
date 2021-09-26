@@ -2,23 +2,23 @@ ARCH := x86_64
 
 OS_NAME = walnut
 
-BUILD_DIR = $(abspath Build)
-SOURCE_DIR = $(abspath Source)
-INCLUDE_DIR = $(abspath Include)
+BUILD_DIR = $(abspath build)
+SOURCE_DIR = $(abspath src)
+INCLUDE_DIR = $(abspath include)
+GNU_EFI_DIR = $(INCLUDE_DIR)/gnu-efi
+GNU_EFI_INCLUDE_DIR = $(GNU_EFI_DIR)/inc
 
 SRCFILES := $(shell find $(SOURCE_DIR) -type f -name "*.c")
 HDRFILES = $(shell find $(SOURCE_DIR) -name '*.h') $(shell find $(LIBC_DIR) -name '*.h')
-OBJFILES = $(patsubst $(SOURCE_DIR)%.c, $(BUILD_DIR)%.o, $(SRCFILES))
-
-BUILD_DIR := Build
+OBJFILES = $(patsubst $(SOURCE_DIR)%.c, $(BUILD_DIR)%.o, $(SRCFILES)) 
 
 
-CC := gcc
-CXX := g++
+
+CC := clang
 EMU = qemu-system-x86_64
 DBG = gdb
 AS = nasm
-LD = ld
+LD = clang
 
 EMUFLAGS := -machine q35 -m 256 -smp 4 -net none \
     -global driver=cfi.pflash01,property=secure,value=on \
@@ -35,39 +35,43 @@ DBG_FLAGS = -ex "target remote localhost:1234" \
 
 
 CSTD := c17
+CXXSTD := c++20
 
-CFLAGS := -ffreestanding -fpic -fno-stack-protector -fshort-wchar -mno-red-zone -mgeneral-regs-only -mabi=ms -Wall -Wextra -Wpedantic -O3 
-CXXFLAGS := -ffreestanding -fpic -fno-stack-protector -fshort-wchar -mno-red-zone -mgeneral-regs-only -mabi=ms -Wall -Wextra -Wpedantic -O3  
 
-LDFLAGS := -nostdlib -shared -T x86_64.lds -Bsymbolic -znocombreloc 
+GNUEFIPATH := include/gnu-efi
 
+CFLAGS := -target x86_64-unknown-windows \
+		-ffreestanding \
+		-fshort-wchar \
+		-mno-red-zone \
+		-I$(GNUEFIPATH)/inc -I$(GNUEFIPATH)/inc/x86_64 -I$(GNUEFIPATH)/inc/protocol
+
+LDFLAGS := -target x86_64-unknown-windows \
+	-nostdlib \
+	-Wl,-entry:efi_main \
+	-Wl,-subsystem:efi_application \
+	-fuse-ld=lld-link
 
 .PHONY: all clean
 
-all: run 
+all: run
 
 build: $(OBJFILES)
-	@$(LD) $(LDFLAGS) -o $(BUILD_DIR)/kernel_x64.elf $(OBJFILES)
-	
-to_efi_image: build
-	@objcopy -I elf64-x86-64 -O efi-app-x86_64 $(BUILD_DIR)/kernel_x64.elf $(BUILD_DIR)/BOOTX64.EFI
+	@$(LD) $(LDFLAGS) -o $(BUILD_DIR)/BOOTX64.EFI $(OBJFILES)
 
-# Enable pressing CTRL+C to close QEMU
-run: disk_image
-	@$(EMU) $(EMUFLAGS) 
+diskimg:
+	dd if=/dev/zero of=$(BUILD_DIR)/fat.img bs=1k count=1440
+	mformat -i $(BUILD_DIR)/fat.img -f 1440 ::
+	mmd -i $(BUILD_DIR)/fat.img ::/EFI
+	mmd -i $(BUILD_DIR)/fat.img ::/EFI/BOOT
+	mcopy -i $(BUILD_DIR)/fat.img $(BUILD_DIR)/BOOTX64.EFI ::/EFI/BOOT
 
+run: build diskimg
+	qemu-system-x86_64 $(EMUFLAGS)
 
-debug: disk_image
+debug: build diskimg
 	$(EMU) $(EMUFLAGS) $(EMU_DBG_FLAGS) &
 	$(DBG) $(DBG_FLAGS)
-
-
-disk_image: to_efi_image
-	@dd if=/dev/zero of=$(BUILD_DIR)/fat.img bs=1k count=1440
-	@mformat -i $(BUILD_DIR)/fat.img -f 1440 ::
-	@mmd -i $(BUILD_DIR)/fat.img ::/EFI
-	@mmd -i $(BUILD_DIR)/fat.img ::/EFI/BOOT
-	@mcopy -i $(BUILD_DIR)/fat.img $(BUILD_DIR)/BOOTX64.EFI ::/EFI/BOOT
 
 clean:
 	@find $(SOURCE_DIR) -name "*.o" -type f -delete
@@ -78,6 +82,7 @@ clean:
 	@find $(BUILD_DIR) -name "*.elf" -type f -delete
 	@$(RM) -rf $(BUILD_DIR)/*
 
+
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c $(HDRFILES)
 	@mkdir -p $(dir $@)
-	@$(CC) -std=$(CSTD) $(CFLAGS) -I$(INCLUDE_DIR)  -c $< -o $@
+	@$(CC) -std=$(CSTD) $(CFLAGS)  -c $< -o $@

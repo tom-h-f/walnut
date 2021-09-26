@@ -1,9 +1,9 @@
-#include "efi.h"
+#include "types.h"
 
 
 // Print routines for 16-bit characters
 
-inline EFI_STATUS efi_wprint(str16 out_string)
+EFI_STATUS efi_print(c16* out_string)
 {
     return ST->ConOut->OutputString(ST->ConOut, out_string);
 }
@@ -16,13 +16,13 @@ inline EFI_STATUS efi_wprint(str16 out_string)
 
 // Console In Routines
 
-inline EFI_STATUS efi_flush_cin() 
+EFI_STATUS efi_flush_cin() 
 {
 	// Empty the console input buffer to flush out any keystrokes entered before this point.
 	return ST->ConIn->Reset(ST->ConIn, false);
 }
 
-inline EFI_STATUS efi_flush_cout() 
+EFI_STATUS efi_flush_cout() 
 {
 	// Empty the console input buffer to flush out any keystrokes entered before this point.
 	return ST->ConIn->Reset(ST->ConOut, false);
