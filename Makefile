@@ -44,7 +44,8 @@ CFLAGS := -target x86_64-unknown-windows \
 		-ffreestanding \
 		-fshort-wchar \
 		-mno-red-zone \
-		-I$(GNUEFIPATH)/inc -I$(GNUEFIPATH)/inc/x86_64 -I$(GNUEFIPATH)/inc/protocol
+		-I$(GNUEFIPATH)/inc -I$(GNUEFIPATH)/inc/x86_64 -I$(GNUEFIPATH)/inc/protocol \
+		-I$(INCLUDE_DIR)
 
 LDFLAGS := -target x86_64-unknown-windows \
 	-nostdlib \

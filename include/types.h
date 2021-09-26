@@ -4,8 +4,7 @@
 #include "types/std.h"
 #include "efi.h"
 
-#define NULL 0L
-
+extern EFI_SYSTEM_TABLE* ST;
 
 
 
