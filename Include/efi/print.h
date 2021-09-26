@@ -3,8 +3,10 @@
 #include "types.h"
 
 
-EFI_STATUS wprintln(str16 out_string);
-EFI_STATUS wprint(str16 out_string);
+EFI_STATUS efi_wprintln(str16 out_string);
+EFI_STATUS efi_wprint(str16 out_string);
+EFI_STATUS efi_flush_cin();
+EFI_STATUS efi_flush_cout();
 
 typedef struct {
 	u32 MaxMode;
