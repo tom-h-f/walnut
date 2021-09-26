@@ -1,56 +1,27 @@
-//#include "efi.h"
+#include "efi.h"
+#include "macros.h"
 
- 
- /*
+
 EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 {
-	// Set the global EFI_SYSTEM_TABLE
+	// Assign Global System Table from received pointer
 	ST = SystemTable;
-	(void)ImageHandle;
+	UNUSED(ImageHandle);
 
-	EFI_STATUS Status;
-	EFI_INPUT_KEY Key;
  
-	// Print message
-	wprint(L"Welcome to Walnut OS\n\r");
-	
+	// Print welcome message
+	EFI_STATUS Status = efi_wprint(L"Welcome to Walnut");
+	if(EFI_ERROR(Status))
+		return Status;
  
 	// Empty the console input buffer to flush out any keystrokes entered before this point.
-	Status = SystemTable->ConIn->Reset(SystemTable->ConIn, false);
-	if(EFI_ERROR(Status)) return Status;
+	Status = efi_flush_cin();
+	if(EFI_ERROR(Status))
+		return Status;
  
+	EFI_INPUT_KEY Key;
 	// Wait for keypress. 
 	while((Status = SystemTable->ConIn->ReadKeyStroke(SystemTable->ConIn, &Key)) == EFI_NOT_READY) ;
-
-	while(1) { asm("pause");}
  
 	return Status;
 }
-*/
-
-#include "efi.h"
-
-
- 
-EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
-{
-	(void)ImageHandle;
-	EFI_STATUS Status;
-	EFI_INPUT_KEY Key;
- 
-	/* Print message. */
-	Status = SystemTable->ConOut->OutputString(SystemTable->ConOut, L"Hello World\n\r" MESSAGE);
-	if(EFI_ERROR(Status))
-		return Status;
- 
-	/* Empty the console input buffer to flush out any keystrokes entered before this point. */
-	Status = SystemTable->ConIn->Reset(SystemTable->ConIn, false);
-	if(EFI_ERROR(Status))
-		return Status;
- 
-	/* Wait for keypress. */
-	while((Status = SystemTable->ConIn->ReadKeyStroke(SystemTable->ConIn, &Key)) == EFI_NOT_READY) ;
- 
-	return Status;
-}
-
