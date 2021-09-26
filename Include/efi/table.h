@@ -1,5 +1,6 @@
 #include "efi/types.h"
 #include "efi/print.h"
+#include "efi/boot.h"
  
 typedef struct {
 	u64 Signature;
@@ -20,7 +21,7 @@ typedef struct {
 	EFI_PVOID                       StandardErrorHandle;
 	EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *StdErr;
 	void                            *RuntimeServices;
-	void                            *BootServices;
+	EFI_BOOT_SERVICES				*BootServices;
 	UINTN                           NumberOfTableEntries;
 	void                            *ConfigurationTable;
 } EFI_SYSTEM_TABLE;
