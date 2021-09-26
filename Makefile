@@ -9,8 +9,9 @@ GNU_EFI_DIR = $(INCLUDE_DIR)/gnu-efi
 GNU_EFI_INCLUDE_DIR = $(GNU_EFI_DIR)/inc
 
 SRCFILES := $(shell find $(SOURCE_DIR) -type f -name "*.c")
+ASMFILES := $(shell find $(SOURCE_DIR) -type f -name "*.s")
 HDRFILES = $(shell find $(SOURCE_DIR) -name '*.h') $(shell find $(LIBC_DIR) -name '*.h')
-OBJFILES = $(patsubst $(SOURCE_DIR)%.c, $(BUILD_DIR)%.o, $(SRCFILES)) 
+OBJFILES = $(patsubst $(SOURCE_DIR)%.c, $(BUILD_DIR)%.o, $(SRCFILES)) $(patsubst $(SOURCE_DIR)%.s, $(BUILD_DIR)%.o, $(ASMFILES)) 
 
 
 
@@ -24,12 +25,12 @@ EMUFLAGS := -machine q35 -m 256 -smp 4 -net none \
     -global driver=cfi.pflash01,property=secure,value=on \
     -drive if=pflash,format=raw,unit=0,file=/usr/share/ovmf/OVMF.fd,readonly=on \
     -drive if=ide,format=raw,file=$(BUILD_DIR)/fat.img \
-	-nographic
+	-nographic -device isa-debug-exit,iobase=0xf4,iosize=0x04
 
 EMU_DBG_FLAGS = -s -d guest_errors,cpu_reset,int -no-reboot -no-shutdown
 
 DBG_FLAGS = -ex "target remote localhost:1234" \
-			-ex "symbol-file $(BUILD_DIR)/kernel_x64.elf" \
+			-ex "symbol-file $(BUILD_DIR)/BOOTX64.EFI" \
 			-ex "set disassemble-next-line on" \
 			-ex "set step-mode on"
 
@@ -44,31 +45,43 @@ CFLAGS := -target x86_64-unknown-windows \
 		-ffreestanding \
 		-fshort-wchar \
 		-mno-red-zone \
+		-masm=intel \
 		-I$(GNUEFIPATH)/inc -I$(GNUEFIPATH)/inc/x86_64 -I$(GNUEFIPATH)/inc/protocol \
-		-I$(INCLUDE_DIR)
+		-I$(INCLUDE_DIR) \
+		
+
 
 LDFLAGS := -target x86_64-unknown-windows \
 	-nostdlib \
 	-Wl,-entry:efi_main \
 	-Wl,-subsystem:efi_application \
 	-fuse-ld=lld-link
+	
+
+ASFLAGS := -g -fwin64
 
 .PHONY: all clean
 
-all: run
+all:
+	@$(MAKE) clean
+	@$(MAKE) run
+
 
 build: $(OBJFILES)
 	@$(LD) $(LDFLAGS) -o $(BUILD_DIR)/BOOTX64.EFI $(OBJFILES)
 
 diskimg:
-	dd if=/dev/zero of=$(BUILD_DIR)/fat.img bs=1k count=1440
-	mformat -i $(BUILD_DIR)/fat.img -f 1440 ::
-	mmd -i $(BUILD_DIR)/fat.img ::/EFI
-	mmd -i $(BUILD_DIR)/fat.img ::/EFI/BOOT
-	mcopy -i $(BUILD_DIR)/fat.img $(BUILD_DIR)/BOOTX64.EFI ::/EFI/BOOT
+	@dd if=/dev/zero of=$(BUILD_DIR)/fat.img bs=1k count=1440
+	@mformat -i $(BUILD_DIR)/fat.img -f 1440 ::
+	@mmd -i $(BUILD_DIR)/fat.img ::/EFI
+	@mmd -i $(BUILD_DIR)/fat.img ::/EFI/BOOT
+	@mcopy -i $(BUILD_DIR)/fat.img $(BUILD_DIR)/BOOTX64.EFI ::/EFI/BOOT
 
+# This runs QEMU, then checks the error code.
+# If we manually exit, causing exit code 33, we say this was 
+# successfull
 run: build diskimg
-	qemu-system-x86_64 $(EMUFLAGS)
+	@qemu-system-x86_64 $(EMUFLAGS); /usr/bin/test "$$?" -eq 33
 
 debug: build diskimg
 	$(EMU) $(EMUFLAGS) $(EMU_DBG_FLAGS) &
@@ -87,3 +100,7 @@ clean:
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c $(HDRFILES)
 	@mkdir -p $(dir $@)
 	@$(CC) -std=$(CSTD) $(CFLAGS)  -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.s $(HDRFILES)
+	@mkdir -p $(dir $@)
+	@$(AS) $(ASFLAGS) $< -o $@

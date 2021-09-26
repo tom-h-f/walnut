@@ -25,3 +25,7 @@ make -j$(nproc)
 # Run in QEMU (will fail if qemu-system-x86_64 is not installed)
 make run
 ```
+
+## TODOs
+
+- [ ] Working printf, currently snprintf attempts a `__chkstk` call which causes it to be fucked. So if you call `efi_println` and then `efi_snprintf` it will half print it, but if you call just `efi_snprintf` it prints nothing.

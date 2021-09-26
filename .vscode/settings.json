@@ -11,6 +11,8 @@
         "graphics.h": "c",
         "output.h": "c",
         "methods.h": "c",
-        "gop.h": "c"
+        "gop.h": "c",
+        "string.h": "c",
+        "framebuffer.h": "c"
     }
 }
