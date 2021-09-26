@@ -22,6 +22,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 	EFI_INPUT_KEY Key;
 	// Wait for keypress. 
 	while((Status = SystemTable->ConIn->ReadKeyStroke(SystemTable->ConIn, &Key)) == EFI_NOT_READY) ;
+
+
  
 	return Status;
 }
