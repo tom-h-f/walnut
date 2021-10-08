@@ -12,7 +12,8 @@
 use walnut::{KernelInfo, efi::{
         self,
         structures::{EfiHandle, EfiSystemTable},
-    }, memory, println};
+    }, memory, println
+};
 
 
 /// Entry point of that UEFI calls.
