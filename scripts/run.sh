@@ -1,49 +1,78 @@
 #!/bin/bash
+# Boot a UEFI image in QEMU and return the isa-debug-exit status.
+#
+# The kernel writes a u32 to port 0xF4. QEMU turns that into
+# (value << 1) | 1. Success is 0x10, which is process status 33, and
+# this script exits 0 for that status. Any other status is passed through.
+
+set -u
+set -o pipefail
 
 DEFAULT_BIN_PATH="target/x86_64-unknown-uefi/debug/walnut.efi"
+BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-BASE_DIR="$(dirname $0)/../"
-
-if [ $# -eq 0 ]; then
-  if [ ! -f DEFAULT_BIN_PATH ]; then
-    echo "Please provide a binary name as an argument"
-    exit 1
-  else
-    BIN_PATH=$DEFAULT_BIN_PATH
-  fi
+if [ $# -ge 1 ] && [ -n "$1" ]; then
+  BIN_PATH="$1"
 else
-  BIN_PATH=$1
+  BIN_PATH="$DEFAULT_BIN_PATH"
 fi
 
-if [ "$1" = "" ]; then
-  BIN_PATH=$DEFAULT_BIN_PATH
+if [ ! -f "$BIN_PATH" ]; then
+  echo "EFI image not found: $BIN_PATH" >&2
+  exit 1
 fi
 
-mkdir -p $BASE_DIR/target/EFI/BOOT
-cp $BIN_PATH $BASE_DIR/target/EFI/BOOT/BOOTx64.EFI
+if ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
+  echo "qemu-system-x86_64 is not installed" >&2
+  exit 1
+fi
+
+# Linux can use KVM and fall back to TCG. Darwin has no KVM.
+case "$(uname -s)" in
+  Darwin) ACCEL="tcg" ;;
+  *) ACCEL="kvm:tcg" ;;
+esac
+
+OVMF=""
+for candidate in \
+  /usr/share/ovmf/OVMF.fd \
+  /usr/share/OVMF/OVMF_CODE.fd \
+  /opt/homebrew/share/qemu/edk2-x86_64-code.fd \
+  /usr/local/share/qemu/edk2-x86_64-code.fd
+do
+  if [ -f "$candidate" ]; then
+    OVMF="$candidate"
+    break
+  fi
+done
+
+if [ -z "$OVMF" ]; then
+  echo "OVMF firmware not found (tried /usr/share/ovmf/OVMF.fd and Homebrew edk2-x86_64-code.fd)" >&2
+  exit 1
+fi
+
+mkdir -p "$BASE_DIR/target/EFI/BOOT"
+cp "$BIN_PATH" "$BASE_DIR/target/EFI/BOOT/BOOTx64.EFI"
 
 echo "Running QEMU..."
 
-# Preserve exit code before we pipe to sed 
-# Then remove VT100 Escape Codes
-# And remove QEMU UEFI output
-set -o pipefail
+# grep drops the firmware's BdsDxe trace. PIPESTATUS keeps QEMU's code
+# when grep exits 1 because every line was filtered.
 qemu-system-x86_64 \
-  -enable-kvm \
   -nodefaults \
-  -vga std \
-  -machine q35,accel=kvm:tcg \
+  -machine "q35,accel=${ACCEL}" \
   -m 1G \
-  -drive if=pflash,format=raw,readonly=on,file=/usr/share/ovmf/OVMF.fd \
-  -drive format=raw,file=fat:rw:$BASE_DIR/target/ \
+  -drive "if=pflash,format=raw,readonly=on,file=${OVMF}" \
+  -drive "format=raw,file=fat:rw:${BASE_DIR}/target/" \
   -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
   -serial stdio \
   -smp 4 \
-  -nographic | \
-  $2           \
-  grep -v "BdsDxe" # Removes useless QEMU UEFI output and strips VT100 colour codes
+  -nographic \
+  -no-reboot \
+  | grep -v "BdsDxe"
+status=${PIPESTATUS[0]}
 
-
-# Check for the desired QEMU exit code, and exit with 0
-# Else, exit with the original code
-[ $? -eq 33 ] && exit 0 || exit $QEMU_EXITCODE 
+if [ "$status" -eq 33 ]; then
+  exit 0
+fi
+exit "$status"
