@@ -16,6 +16,8 @@
 #![feature(alloc_error_handler)]
 // Used for implementing operations for `PhysFrame` across different Page Sizes
 #![feature(const_fn_trait_bound)]
+// `ApicRecordType` mixes explicit ACPI type numbers with an `Unknown(u8)` variant.
+#![feature(arbitrary_enum_discriminant)]
 
 extern crate alloc;
 
