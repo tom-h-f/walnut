@@ -14,13 +14,15 @@ The target is `x86_64-unknown-uefi`. `core` and `alloc` are built from source be
 
 `efi_main` stores the EFI system table, calls `GetMemoryMap`, then `ExitBootServices`. Serial output between those two calls is fine. A UEFI console print is not: it allocates, the map key dies, and `ExitBootServices` returns `EFI_INVALID_PARAMETER`.
 
+`SetVirtualAddressMap` is not called. It would move runtime services to physical + 10 TiB, and the firmware page tables do not map that window, so the call faults before the allocator exists. Runtime services stay at their physical addresses.
+
 Usable ranges are boot-services code and data, conventional memory, and persistent memory. Runtime services stay mapped, because `SetVirtualAddressMap` still calls into them. MMIO is devices. Loader code and data are this image. ACPI reclaim is left alone until the tables have been read.
 
-Runtime services are relocated at physical + 10 TiB (`IDENTITY_MAP_OFFSET`). That keeps their virtual addresses off the low physical memory UEFI identity-mapped. There is no higher-half kernel map yet, so the offset stays in the lower canonical half.
+`IDENTITY_MAP_OFFSET` is 10 TiB. It is not applied. There is no higher-half kernel map yet, so the constant stays in the lower canonical half, above the RAM the allocator hands out.
 
 ACPI comes from the UEFI configuration table. The ACPI 2.0 GUID is preferred, then 1.0. The RSDP must be revision 2 or newer: the XSDT pointer is not in the 1.0 structure. Each XSDT entry is an 8-byte physical address. A length that is not a multiple of 8 is rejected. Each table is checksummed (the sum of every byte, including the checksum byte, is 0 mod 256). The MADT parse counts local APICs with the enabled flag and records the I/O APIC address. A core marked only online-capable is not counted: it can be started later, and it is not online now.
 
-A bump frame allocator is built over the largest usable range, and a `linked_list_allocator` heap is placed on that same range. The first frame the bump allocator returns is the page at `0x1000`, not the base of the range. The heap does not go through that allocator. `kmain` prints `KernelInfo` and one heap `Box` on COM1 (port `0x3F8`), then panics. The panic handler writes `0x11` to QEMU's `isa-debug-exit` port `0xF4`.
+The largest usable range is split. The first 1 MiB, page-aligned, is the `linked_list_allocator` heap (`LockedHeap::init` takes a bottom address and a size, not the end address). Everything after that is the bump frame allocator, which hands out 4 KiB frames from the front of that pool. `kmain` prints `KernelInfo`, allocates one frame, allocates `Box::new(41)`, and writes `0x10` to QEMU's `isa-debug-exit` port `0xF4` (process status 33). A panic still writes `0x11`.
 
 Paging types for 4 KiB, 2 MiB, and 1 GiB pages are in the tree, and `active_level_4_table` can read the PML4 from CR3. The kernel does not install its own page tables. A PTE's low 12 bits are flags (present, writable, user, cache, accessed, dirty, huge, global, no-execute). Those bits are handled by the `x86_64` crate. This kernel only adds the virtual offset so the PML4 frame is reachable after the runtime relocation.
 
@@ -80,6 +82,6 @@ Lib tests cover alignment, the 52-bit physical mask, frame-allocator errors (`Ex
 cargo run -Z build-std
 ```
 
-The runner copies the image to `target/EFI/BOOT/BOOTx64.EFI` and boots it from a virtual FAT volume. The machine is q35, 1 GiB RAM, 4 CPUs, serial on stdio, no display. Linux uses `accel=kvm:tcg`. macOS uses `accel=tcg` (there is no KVM). `-no-reboot` is set so a triple fault does not sit in a loop.
+The runner copies the image to `target/EFI/BOOT/BOOTx64.EFI` and boots it from a virtual FAT volume. The machine is q35, 1 GiB RAM, 1 CPU, serial on stdio, no display. Extra CPUs fault during `ExitBootServices` because there is no AP startup and no IDT. Linux uses `accel=kvm:tcg`. macOS uses `accel=tcg` (there is no KVM). `-no-reboot` is set so a triple fault does not sit in a loop. The runner writes serial to `target/serial.log` and prints it after QEMU exits, because `isa-debug-exit` does not flush a stdio pipe.
 
-A normal boot panics at the end of `kmain`, so QEMU exits with a failure status. That is the current end of the kernel.
+A normal boot exits 0 from `cargo run` after the frame and the heap box are printed.

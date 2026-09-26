@@ -9,13 +9,16 @@ pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 /// Bump allocator over one UEFI memory range.
 ///
-/// The heap is placed on the range directly. This allocator is for later
-/// physical frames. Running out of frames is an error: returning nothing
-/// and letting the caller retry just spins.
+/// Frames come from `[start, end)`, page-aligned. The heap is a different
+/// slice of the same usable region (`memory::init` splits them). Running
+/// out of frames is an error: returning nothing and letting the caller
+/// retry just spins.
 #[derive(Debug, Copy, Clone)]
 pub struct FrameAllocator {
-    memory_range: Range,
-    next_frame: PhysFrame,
+    /// First address that may still be handed out.
+    next: u64,
+    /// Exclusive end of the frame pool.
+    end: u64,
     /// How many pages have been allocated so far.
     n: u64,
 }
@@ -23,54 +26,43 @@ pub struct FrameAllocator {
 impl FrameAllocator {
     const FRAME_SIZE: u64 = 4096;
 
-    /// First frame handed out. This is not `memory_range.start`.
+    /// `Err` when the range does not contain a whole 4 KiB frame.
     ///
-    /// The range only bounds the frames after this one. Boot does not
-    /// allocate through here for the heap, so the kernel image still comes
-    /// up if this page is outside the UEFI range.
-    const FIRST_FRAME_ADDR: u64 = 0x1000;
-
-    pub fn new(memory_range: Range) -> Self {
-        let start_frame = PhysFrame::containing_address(PhysAddr(Self::FIRST_FRAME_ADDR));
-        Self {
-            memory_range,
-            next_frame: start_frame,
-            n: 0,
-        }
-    }
-
-    /// Allocate one 4 KiB frame.
-    ///
-    /// `Exhausted` means the range's page count is used up. `PastRange`
-    /// means the following address would pass `memory_range.end` even
-    /// though the count still had room (the range end is below the start,
-    /// so `size()` wraps).
-    pub fn alloc_frame(&mut self) -> Result<PhysFrame> {
-        let next = self.get_next()?;
-        self.n += 1;
-        Ok(next)
-    }
-
-    /// Returns the next frame. Does not advance `self.n`.
-    fn get_next(&mut self) -> Result<PhysFrame> {
-        // The frame we return was chosen on the previous call. The first
-        // call returns `FIRST_FRAME_ADDR`. The address computed here is
-        // the one *after* it, which is what the range check applies to.
-        let frame_to_return = self.next_frame;
-
-        if self.n >= (self.memory_range.size() / Self::FRAME_SIZE) {
+    /// `start` is rounded up and `end` is rounded down. A range that
+    /// runs backwards, or that shrinks to nothing once aligned, is rejected
+    /// here instead of wrapping `size()` and walking off the end of RAM.
+    pub fn new(memory_range: Range) -> Result<Self> {
+        let start = crate::memory::align_up(memory_range.start, Self::FRAME_SIZE);
+        let end = crate::memory::align_down(memory_range.end, Self::FRAME_SIZE);
+        if start >= end {
             return Err(Error::Exhausted);
         }
+        Ok(Self {
+            next: start,
+            end,
+            n: 0,
+        })
+    }
 
-        let frame_addr = self.memory_range.start + ((self.n + 1) * Self::FRAME_SIZE);
-
-        if frame_addr > self.memory_range.end {
-            return Err(Error::PastRange);
+    /// Allocate one 4 KiB frame from the front of the pool.
+    ///
+    /// `Exhausted` means the next frame would pass `end`.
+    pub fn alloc_frame(&mut self) -> Result<PhysFrame> {
+        let addr = self.next;
+        let next = match addr.checked_add(Self::FRAME_SIZE) {
+            Some(next) => next,
+            None => return Err(Error::PastRange),
+        };
+        if next > self.end {
+            return Err(Error::Exhausted);
         }
+        self.next = next;
+        self.n += 1;
+        Ok(PhysFrame::containing_address(PhysAddr(addr)))
+    }
 
-        self.next_frame = PhysFrame::containing_address(PhysAddr(frame_addr));
-
-        Ok(frame_to_return)
+    pub fn frames_allocated(&self) -> u64 {
+        self.n
     }
 }
 
@@ -90,24 +82,28 @@ mod test {
     }
 
     #[test_case]
-    fn bump_returns_first_page_then_exhausts() {
+    fn bump_walks_the_given_range() {
         // 8192 bytes is two frames. The third call has spent the budget.
-        let mut alloc = FrameAllocator::new(range(0x20_0000, 0x20_0000 + 8192));
-        let first = alloc.alloc_frame().expect("first frame");
+        let mut alloc = FrameAllocator::new(range(0x20_0000, 0x20_0000 + 8192)).unwrap();
         assert_eq!(
-            first.start_address().as_u64(),
-            FrameAllocator::FIRST_FRAME_ADDR
+            alloc.alloc_frame().unwrap().start_address().as_u64(),
+            0x20_0000
         );
-        assert!(alloc.alloc_frame().is_ok());
+        assert_eq!(
+            alloc.alloc_frame().unwrap().start_address().as_u64(),
+            0x20_1000
+        );
         assert_eq!(alloc.alloc_frame().unwrap_err(), Error::Exhausted);
+        assert_eq!(alloc.frames_allocated(), 2);
     }
 
     #[test_case]
-    fn address_past_end_is_past_range() {
-        // `end < start` makes `size()` wrap to a huge budget, so the
-        // page-count check does not fire. The end comparison does.
-        let mut alloc = FrameAllocator::new(range(0x8000, 0x1000));
-        assert_eq!(alloc.alloc_frame().unwrap_err(), Error::PastRange);
+    fn inverted_or_tiny_range_is_rejected() {
+        // `end < start` used to wrap `size()` into a huge budget.
+        assert!(FrameAllocator::new(range(0x8000, 0x1000)).is_err());
+        assert!(FrameAllocator::new(range(0x1000, 0x1000)).is_err());
+        // 0x1100 rounds up to 0x2000, 0x1800 rounds down to 0x1000.
+        assert!(FrameAllocator::new(range(0x1100, 0x1800)).is_err());
     }
 
     #[test_case]

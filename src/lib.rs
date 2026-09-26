@@ -1,8 +1,9 @@
 //! x86_64 kernel loaded as a UEFI application.
 //!
-//! Boot services are exited before `kmain`. Frames and the heap come from
-//! the UEFI memory map. ACPI is read from the configuration table. Serial
-//! output is COM1. The GDT, IDT, and page tables stay as the firmware left them.
+//! Boot services are exited before `kmain`. The largest usable range is split
+//! into a 1 MiB heap and a bump frame allocator. ACPI is read from the
+//! configuration table. Serial output is COM1. The GDT, IDT, and page tables
+//! stay as the firmware left them. Runtime services are not relocated.
 
 #![no_std]
 // Configuration to enable running our custom test setup
@@ -38,12 +39,12 @@ pub use memory::{PhysAddr, VirtAddr};
 pub use alloc::boxed::Box;
 pub use alloc::*;
 
-/// Offset passed to `SetVirtualAddressMap`.
+/// 10 TiB. Kept as the offset a later `SetVirtualAddressMap` would use.
 ///
-/// 10 TiB. Runtime services are relocated here so their virtual addresses
-/// do not alias the low physical memory UEFI left identity-mapped. There is
-/// no higher-half kernel map yet, so the offset stays in the lower canonical
-/// half, above the RAM this allocator hands out.
+/// It is not applied. The firmware page tables do not map this window, so
+/// relocating runtime services here faults before the allocator exists.
+/// There is no higher-half kernel map yet, so the value stays in the lower
+/// canonical half, above the RAM this allocator hands out.
 pub const IDENTITY_MAP_OFFSET: u64 = 10u64 << 40;
 
 // Macros
@@ -137,7 +138,13 @@ pub unsafe extern "efiapi" fn efi_main(
     st: *mut efi::structures::EfiSystemTable,
 ) -> u64 {
     efi::init(&mut *st).expect("Couldnt intialize EFI structures");
-    efi::exit_boot_services(handle).unwrap();
+    let memory_map = efi::exit_boot_services(handle).unwrap();
+    memory::init(
+        *memory_map
+            .largest()
+            .expect("Couldn't get largest memory range"),
+    )
+    .expect("Couldn't intialize frame allocator");
     test_main();
     loop {}
 }

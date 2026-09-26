@@ -51,16 +51,26 @@ pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTabl
 }
 
 /// Entry point of the kernel
-pub fn kmain(kinfo: KernelInfo) {
+pub fn kmain(mut kinfo: KernelInfo) {
     #[cfg(test)]
     test_main();
 
     println!("{:#X?}", kinfo);
 
-    let a = walnut::Box::new(41);
-    println!("{}", a);
+    let frame = kinfo
+        .frame_allocator
+        .alloc_frame()
+        .expect("frame allocator had no pages");
+    println!(
+        "frame {:#x} ({} allocated)",
+        frame.start_address().as_u64(),
+        kinfo.frame_allocator.frames_allocated()
+    );
 
-    panic!("reached end of kmain")
+    let a = walnut::Box::new(41);
+    println!("heap box {}", a);
+
+    qemu::exit_success();
 }
 
 #[cfg(not(test))]

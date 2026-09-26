@@ -56,8 +56,12 @@ cp "$BIN_PATH" "$BASE_DIR/target/EFI/BOOT/BOOTx64.EFI"
 
 echo "Running QEMU..."
 
-# grep drops the firmware's BdsDxe trace. PIPESTATUS keeps QEMU's code
-# when grep exits 1 because every line was filtered.
+# One CPU. The kernel has no AP startup and no IDT, so extra CPUs fault
+# during ExitBootServices and QEMU resets before serial output.
+# Serial goes to a file: isa-debug-exit tears QEMU down without flushing
+# a stdio pipe, which used to swallow the kernel log.
+SERIAL_LOG="${BASE_DIR}/target/serial.log"
+rm -f "$SERIAL_LOG"
 qemu-system-x86_64 \
   -nodefaults \
   -machine "q35,accel=${ACCEL}" \
@@ -65,12 +69,15 @@ qemu-system-x86_64 \
   -drive "if=pflash,format=raw,readonly=on,file=${OVMF}" \
   -drive "format=raw,file=fat:rw:${BASE_DIR}/target/" \
   -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
-  -serial stdio \
-  -smp 4 \
+  -serial "file:${SERIAL_LOG}" \
+  -smp 1 \
   -nographic \
-  -no-reboot \
-  | grep -v "BdsDxe"
-status=${PIPESTATUS[0]}
+  -no-reboot
+status=$?
+
+if [ -f "$SERIAL_LOG" ]; then
+  grep -v "BdsDxe" "$SERIAL_LOG" || true
+fi
 
 if [ "$status" -eq 33 ]; then
   exit 0

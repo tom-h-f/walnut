@@ -21,13 +21,16 @@ pub unsafe fn exit_boot_services(handle: EfiHandle) -> Result<RangeSet> {
 
     // After we call get_memory_map we cannot perform any prints or the map_key will
     // cause the attempted exit to return `EFI_INVALID_PARAMETER`
-    let (mut memory_map, key) = memory::get_memory_map(st)?;
+    let (memory_map, key) = memory::get_memory_map(st)?;
 
     // Perform the exit
     exit_boot_service_int(st, handle, key)?;
 
-    // Identity map physical memory at +10 TiB
-    memory::set_memory_map(st, &mut memory_map, crate::IDENTITY_MAP_OFFSET)?;
-
+    // Leave the firmware page tables in place. `SetVirtualAddressMap` would
+    // relocate runtime services to physical + 10 TiB (`IDENTITY_MAP_OFFSET`),
+    // and those virtual addresses are not mapped, so the call faults before
+    // the frame allocator or the heap exist. Runtime services stay at the
+    // physical addresses UEFI identity-mapped. The returned ranges are still
+    // physical.
     Ok(memory_map)
 }
