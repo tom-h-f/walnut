@@ -1,7 +1,7 @@
-use crate::VirtAddr;
 use crate::memory::Addr;
-use core::marker::PhantomData;
+use crate::VirtAddr;
 use core::fmt::{self, Debug};
+use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 use super::{Error, Result};
@@ -86,8 +86,8 @@ impl<S: PageSize> Page<S> {
             size: PhantomData,
         }
     }
-     /// Returns the start address of the page.
-     pub fn start_address(&self) -> VirtAddr {
+    /// Returns the start address of the page.
+    pub fn start_address(&self) -> VirtAddr {
         self.start_address
     }
 
@@ -148,7 +148,6 @@ impl<S: PageSize> Sub<Self> for Page<S> {
         ((self.start_address - rhs.start_address) / S::SIZE).0
     }
 }
-
 
 /// A range of pages with inclusive upper bound.
 #[derive(Clone, Copy, PartialEq, Eq)]

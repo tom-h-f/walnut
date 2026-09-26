@@ -1,14 +1,13 @@
 use super::apic::*;
 use super::{Error, Result, TableType};
-use crate::efi::acpi::structures::apic::ApicRecordType;
-use crate::memory::{self, PhysAddr};
+use crate::memory::PhysAddr;
 use core::mem::size_of;
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 pub struct Madt {
     local_apic_addr: u32,
-    flags: u32, // TODO add bitflags
+    flags: MadtFlags,
 }
 impl Madt {
     pub unsafe fn from_addr(addr: PhysAddr, size: u64) -> Result<Self> {
@@ -18,8 +17,9 @@ impl Madt {
 
         let local_apic_addr = slice.consume::<u32>().map_err(|_| E)?;
 
-        // Get APIC flags
-        let flags = slice.consume::<u32>().map_err(|_| E)?;
+        // Reserved bits are kept out of the flags value. A future ACPI
+        // revision can set them without making this table fail to parse.
+        let flags = MadtFlags::from_bits_truncate(slice.consume::<u32>().map_err(|_| E)?);
         let ret = Self {
             local_apic_addr,
             flags,
@@ -47,9 +47,18 @@ impl Madt {
                         return Err(E);
                     }
 
-                    let _apic = slice.consume::<ProcessorLocalApic>().map_err(|_| E)?;
-                    total_procs += 1;
-                    // TODO should probably check if each core that comes through here is `ENABLED` and if not do something!
+                    let apic = slice.consume::<ProcessorLocalApic>().map_err(|_| E)?;
+                    // The record is packed, so the flags word may be
+                    // misaligned. Copy it before calling a method: a
+                    // reference to a packed field is undefined behavior.
+                    let flags = core::ptr::read_unaligned(core::ptr::addr_of!(apic.flags));
+                    // ENABLED means firmware left this local APIC able to
+                    // take interrupts. ONLINE_CAPABLE without ENABLED is a
+                    // core that can be started later; it is not online, so
+                    // it is not part of the count.
+                    if flags.contains(LocalApicFlags::ENABLED) {
+                        total_procs += 1;
+                    }
                 }
                 ApicRecordType::IoApic => {
                     // Ensure data is correct size
@@ -76,7 +85,9 @@ impl Madt {
                         return Err(E);
                     }
 
-                    let _apic = slice.consume::<ProcessorLocalApic>().map_err(|_| E)?;
+                    let _apic = slice
+                        .consume::<IoApicNonMaskableInterruptSource>()
+                        .map_err(|_| E)?;
                 }
                 ApicRecordType::LocalApicNonMaskableInterrupts => {
                     // Ensure data is correct size
@@ -111,7 +122,7 @@ impl Madt {
         }
 
         crate::println!(
-            "Found {} cores, IOAPIC: {:#X?}, LAPIC: {:#X?}",
+            "Found {} enabled cores, IOAPIC: {:#X?}, LAPIC: {:#X?}",
             total_procs,
             local_apic_addr,
             io_apic_addr

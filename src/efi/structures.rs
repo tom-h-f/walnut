@@ -1,6 +1,6 @@
-use core::sync::atomic::{AtomicPtr, Ordering};
 use super::acpi::structures;
 use super::acpi::structures::TableType;
+use core::sync::atomic::{AtomicPtr, Ordering};
 
 pub const EFI_PAGE_SIZE: u64 = 4096;
 
@@ -197,9 +197,12 @@ pub struct EfiRuntimeService {
     set_time: u64,
     get_wakeup_time: u64,
     set_wakeup_time: u64,
-    pub set_virtual_address_map: unsafe fn (MemoryMapSize: usize, DescriptorSize: usize, 
-                                     DescriptorVersion: u64, *const [super::memory::EfiMemoryDescriptor]) 
-                                          -> EfiStatus,
+    pub set_virtual_address_map: unsafe fn(
+        MemoryMapSize: usize,
+        DescriptorSize: usize,
+        DescriptorVersion: u64,
+        *const [super::memory::EfiMemoryDescriptor],
+    ) -> EfiStatus,
 }
 
 #[derive(Debug)]

@@ -10,7 +10,10 @@ pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut
     dest
 }
 
-// One-byte memset, very inefficent for large sizes, but will extend this later.
+/// Fill `n` bytes at `dest` with the low 8 bits of `byte`.
+///
+/// `rep stosb` is the whole implementation. The compiler calls this for
+/// the sizes `alloc` clears. A wider store loop would not change the result.
 #[no_mangle]
 pub unsafe extern "C" fn memset(dest: *mut u8, byte: u32, n: usize) -> *mut u8 {
     asm!(
@@ -21,8 +24,6 @@ pub unsafe extern "C" fn memset(dest: *mut u8, byte: u32, n: usize) -> *mut u8 {
     );
     dest
 }
-
-// TODO implement large memset (from here: https://msrc-blog.microsoft.com/2021/01/11/building-faster-amd64-memset-routines/)
 
 #[no_mangle]
 pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
@@ -43,6 +44,11 @@ pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
     0
 }
 
+/// Copy `n` bytes from `src` to `dest`, including when the ranges overlap.
+///
+/// `rep movsb` walks upward. That is safe when `dest` is at or below `src`.
+/// When `dest` sits inside `src`, an upward copy would read bytes it had
+/// already overwritten, so those bytes are copied from the end.
 #[no_mangle]
 pub unsafe extern "C" fn memmove(dest: *mut u8, src: *mut u8, n: usize) -> usize {
     let su = src as usize;
@@ -53,24 +59,10 @@ pub unsafe extern "C" fn memmove(dest: *mut u8, src: *mut u8, n: usize) -> usize
     }
 
     if du > su && du - su < n {
-        // dest overlaps with src
-        //  <src......>
-        //         <dest........>
-        // copy in reverse, to avoid overwriting src
-        let mut i = n as isize;
+        let mut i = n;
         while i > 0 {
-            core::ptr::write_unaligned(dest.offset(i), src.offset(i).read_unaligned());
             i -= 1;
-        }
-    } else if su > du && (su - du) < n {
-        // dest overlaps with src
-        //        <src......>
-        //  <dest........>
-        // copy forwards, to avoid overwriting src
-        let mut i = 0_isize;
-        while i > n as isize {
-            core::ptr::write_unaligned(dest.offset(i), src.offset(i).read_unaligned());
-            i += 1;
+            core::ptr::write_unaligned(dest.add(i), src.add(i).read_unaligned());
         }
     } else {
         memcpy(dest, src, n);

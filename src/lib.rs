@@ -1,3 +1,9 @@
+//! x86_64 kernel loaded as a UEFI application.
+//!
+//! Boot services are exited before `kmain`. Frames and the heap come from
+//! the UEFI memory map. ACPI is read from the configuration table. Serial
+//! output is COM1. The GDT, IDT, and page tables stay as the firmware left them.
+
 #![no_std]
 // Configuration to enable running our custom test setup
 #![cfg_attr(test, no_main)]
@@ -29,28 +35,30 @@ pub mod memory;
 use memory::allocator::FrameAllocator;
 pub use memory::{PhysAddr, VirtAddr};
 
-pub use alloc::*;
 pub use alloc::boxed::Box;
+pub use alloc::*;
 
-pub const IDENTITY_MAP_OFFSET: u64 = (((1024 * 1024) * 1024) * 1024) * 10;
-
+/// Offset passed to `SetVirtualAddressMap`.
+///
+/// 10 TiB. Runtime services are relocated here so their virtual addresses
+/// do not alias the low physical memory UEFI left identity-mapped. There is
+/// no higher-half kernel map yet, so the offset stays in the lower canonical
+/// half, above the RAM this allocator hands out.
+pub const IDENTITY_MAP_OFFSET: u64 = 10u64 << 40;
 
 // Macros
 
 #[macro_export]
 macro_rules! whereami {
-    () => {
-        {
+    () => {{
         fn f() {}
         fn type_name_of<T>(_: T) -> &'static str {
             core::any::type_name::<T>()
         }
         let name = type_name_of(f);
         crate::println!("{}:{}", &name[..name.len() - 3], line!());
-        }
-    };
+    }};
 }
-
 
 #[macro_export]
 macro_rules! dump_stack {
@@ -59,12 +67,10 @@ macro_rules! dump_stack {
         // Get stack pointer
         let rsp = walnut::arch::register::read("rsp").unwrap();
         // Read 1024 bytes from stack pointer
-        let data = unsafe {
-            *(rsp as *const [u8; 1024])
-        };
+        let data = unsafe { *(rsp as *const [u8; 1024]) };
         for i in (0..data.len()).step_by(16) {
             for j in 0..16 {
-                walnut::print!("{:02X?} ", data[i+j]);
+                walnut::print!("{:02X?} ", data[i + j]);
                 if j == 15 {
                     walnut::print!("\n");
                 } else if j == 7 {
@@ -72,7 +78,7 @@ macro_rules! dump_stack {
                 }
             }
         }
-    }
+    };
 }
 
 #[derive(Debug)]
@@ -81,8 +87,8 @@ pub struct KernelInfo {
     pub frame_allocator: FrameAllocator,
 }
 
-
-//TODO pub static KINFO: spin::Mutex<arc
+// `KernelInfo` stays on `kmain`'s stack. A static would need a lock and an
+// allocation before the heap exists.
 
 // --------------------------------------------------
 // Testing
@@ -157,4 +163,3 @@ fn vec_push() {
         //v.pop();
     }
 }
-

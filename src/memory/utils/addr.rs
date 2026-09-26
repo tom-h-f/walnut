@@ -1,10 +1,9 @@
+use super::readpu;
 use super::{align_down, align_up};
 use crate::memory::paging::PAGE_SIZE;
 use core::mem::size_of;
-use super::readpu;
 
-
-pub trait Addr{
+pub trait Addr {
     fn as_u64(self) -> u64;
 }
 
@@ -188,7 +187,7 @@ impl PhysSlice {
             // Update length
             self.1 -= bytes as usize;
             // and pointer
-            (self.0).0 += bytes ;
+            (self.0).0 += bytes;
             Ok(())
         } else {
             Err(())
@@ -221,7 +220,6 @@ impl PhysSlice {
         }
     }
 }
-
 
 // Operations for Addrs
 

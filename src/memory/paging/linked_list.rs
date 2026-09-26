@@ -1,4 +1,7 @@
-use crate::{VirtAddr, memory::{align_up, allocator::FrameAllocator, Result, Error}};
+use crate::{
+    memory::{align_up, allocator::FrameAllocator, Result},
+    VirtAddr,
+};
 
 struct ListNode {
     size: u64,
@@ -36,18 +39,26 @@ impl LinkedListAllocator {
     /// This function is unsafe because the caller must guarantee that the given
     /// heap bounds are valid and that the heap is unused. This method must be
     /// called only once.
-    pub unsafe fn init(&mut self, heap_start: u64, heap_size: u64, frame_allocator: &mut FrameAllocator) -> Result<()> {
-
-        let start_page: Page<Size4KiB> = Page::containing_address(VirtAddr::containing_addr::<u64>(heap_start));
-        let end_page: Page<Size4KiB> = Page::containing_address(VirtAddr::containing_addr::<u64>(heap_start + heap_size));
+    pub unsafe fn init(
+        &mut self,
+        heap_start: u64,
+        heap_size: u64,
+        frame_allocator: &mut FrameAllocator,
+    ) -> Result<()> {
+        let start_page: Page<Size4KiB> =
+            Page::containing_address(VirtAddr::containing_addr::<u64>(heap_start));
+        let end_page: Page<Size4KiB> =
+            Page::containing_address(VirtAddr::containing_addr::<u64>(heap_start + heap_size));
 
         let page_range = Page::range_inclusive(start_page, end_page);
 
-        for page in page_range {
-            let frame = frame_allocator.alloc_frame().ok_or(Error::CouldntAllocFrame)?;
+        for _page in page_range {
+            // Reserve one physical frame per page. No PTE is written yet:
+            // the free region added below is the caller's virtual range,
+            // not these frames. The reservation only stops the bump
+            // allocator from handing the same page out again.
+            let _frame = frame_allocator.alloc_frame()?;
         }
-
-
 
         self.add_free_region(heap_start, heap_size);
 
@@ -100,7 +111,11 @@ impl LinkedListAllocator {
     /// alignment.
     ///
     /// Returns the allocation start address on success.
-    fn alloc_from_region(region: &ListNode, size: u64, align: u64) -> core::result::Result<u64, ()> {
+    fn alloc_from_region(
+        region: &ListNode,
+        size: u64,
+        align: u64,
+    ) -> core::result::Result<u64, ()> {
         let alloc_start = align_up(region.start_addr(), align);
         let alloc_end = alloc_start.checked_add(size).ok_or(())?;
 
@@ -133,9 +148,12 @@ impl LinkedListAllocator {
     }
 }
 
-use super::{Locked, page::{Page, PageSize, Size4KiB}};
+use super::{
+    page::{Page, Size4KiB},
+    Locked,
+};
 use alloc::alloc::{GlobalAlloc, Layout};
-use core::{num::ParseFloatError, ptr};
+use core::ptr;
 
 unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {

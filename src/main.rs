@@ -9,12 +9,13 @@
 // Needed for `efi_main` calling convention
 #![feature(abi_efiapi)]
 
-use walnut::{KernelInfo, efi::{
+use walnut::{
+    efi::{
         self,
         structures::{EfiHandle, EfiSystemTable},
-    }, memory, println
+    },
+    memory, println, KernelInfo,
 };
-
 
 /// Entry point of that UEFI calls.
 ///
@@ -30,8 +31,11 @@ pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTabl
 
     // Intialize ACPI Tables
     efi::acpi::init().expect("Couldn't intialize ACPI");
-    let frame_allocator = memory::init(*memory_map.largest()
-    .expect("Couldn't get largest memory range"))
+    let frame_allocator = memory::init(
+        *memory_map
+            .largest()
+            .expect("Couldn't get largest memory range"),
+    )
     .expect("Couldn't intialize frame allocator");
 
     // Create kernel_info to pass into the kernel main
@@ -39,7 +43,6 @@ pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTabl
         memory_map,
         frame_allocator,
     };
-
 
     // Call kernel main and supply the memory range obtained from
     // GetMemoryMap
@@ -49,7 +52,6 @@ pub unsafe extern "efiapi" fn efi_main(handle: EfiHandle, st: *mut EfiSystemTabl
 
 /// Entry point of the kernel
 pub fn kmain(kinfo: KernelInfo) {
-
     #[cfg(test)]
     test_main();
 
@@ -57,8 +59,6 @@ pub fn kmain(kinfo: KernelInfo) {
 
     let a = walnut::Box::new(41);
     println!("{}", a);
-
-
 
     panic!("reached end of kmain")
 }

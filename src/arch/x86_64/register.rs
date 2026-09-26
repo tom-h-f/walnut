@@ -8,7 +8,10 @@ macro_rules! dump_state {
     };
 }
 
-/// Defines a system's state, contains key register values
+/// Integer GPRs and RFLAGS.
+///
+/// x87 and XMM are not read. Nothing in the kernel uses them, and reading
+/// them needs an FXSAVE region this code does not allocate.
 pub struct SysState {
     rax: u64,
     rbx: u64,
@@ -61,7 +64,7 @@ RFLAGS: {:#?}\n",
             self.r14,
             self.r15,
             self.rflags
-        )) // TODO do floating point and other registers
+        ))
     }
 }
 

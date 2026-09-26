@@ -20,6 +20,9 @@ impl<S: PageSize> PhysFrame<S> {
     /// Returns the frame that starts at the given virtual address.
     ///
     /// Returns an error if the address is not correctly aligned (i.e. is not a valid frame start).
+    ///
+    /// A PTE stores flags in the low 12 bits, so a frame address that is not
+    /// a multiple of the page size cannot be written into a page table.
     #[inline]
     pub fn from_start_address(address: PhysAddr) -> Result<Self> {
         if !address.is_aligned(S::SIZE) {

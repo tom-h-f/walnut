@@ -23,13 +23,11 @@ pub unsafe fn exit_boot_services(handle: EfiHandle) -> Result<RangeSet> {
     // cause the attempted exit to return `EFI_INVALID_PARAMETER`
     let (mut memory_map, key) = memory::get_memory_map(st)?;
 
-
     // Perform the exit
     exit_boot_service_int(st, handle, key)?;
 
     // Identity map physical memory at +10 TiB
     memory::set_memory_map(st, &mut memory_map, crate::IDENTITY_MAP_OFFSET)?;
-
 
     Ok(memory_map)
 }

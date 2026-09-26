@@ -164,8 +164,10 @@ pub struct Rsdt {
     /// this points to Other SDT
     other_sdt_ptr: u64,
 }
-/// Computes a checksum by caluclating the sum of all bytes in `addr..(addr + size)`,
-/// returns `Ok` if `sum == 0`
+/// ACPI checksum: the sum of every byte in the table, including the
+/// checksum byte itself, is 0 mod 256. A non-zero sum means the table
+/// was truncated or the firmware wrote a bad header, so the payload
+/// must not be trusted.
 unsafe fn compute_checksum(addr: PhysAddr, size: u64, r#type: TableType) -> Result<()> {
     let chk = (0..size).fold(0u8, |acc, offset| {
         acc.wrapping_add(unsafe { memory::readp::<PhysAddr, u8>(PhysAddr(addr.0 + offset as u64)) })

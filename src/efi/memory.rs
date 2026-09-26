@@ -1,5 +1,6 @@
 use super::{EfiSystemTable, Error, Result, EFI_PAGE_SIZE};
-use crate::{memory::{Range, RangeSet}, print};
+use crate::memory::{Range, RangeSet};
+use core::convert::TryFrom;
 
 #[derive(Copy, Clone, Default, Debug)]
 #[repr(C)]
@@ -53,13 +54,15 @@ pub enum EfiMemoryType {
     PersistentMemory = 14,
 }
 
-impl From<u32> for EfiMemoryType {
-    fn from(v: u32) -> Self {
+impl TryFrom<u32> for EfiMemoryType {
+    type Error = u32;
+
+    fn try_from(v: u32) -> core::result::Result<Self, u32> {
         use EfiMemoryType::*;
-        match v {
+        Ok(match v {
             0 => Reserved,
             1 => LoaderCode,
-            2 => LoaderCode,
+            2 => LoaderData,
             3 => BootServicesCode,
             4 => BootServicesData,
             5 => RuntimeServicesCode,
@@ -72,16 +75,24 @@ impl From<u32> for EfiMemoryType {
             12 => MmioPortSpace,
             13 => PalCode,
             14 => PersistentMemory,
-            _ => {
-                panic!("Unsupported memory type supplied!")
-            }
-        }
+            // Newer or vendor types are not a pool we can classify. The
+            // caller skips them instead of panicking during the map walk.
+            _ => return Err(v),
+        })
     }
 }
 
 impl EfiMemoryType {
-    /// Returns whether or not the memory type is available
-    /// for general purpose use after boot services have been exited (brexit).
+    /// Memory we may treat as a general pool once `ExitBootServices` returns.
+    ///
+    /// Boot-services code and data are the firmware's pool; the spec allows
+    /// reuse after exit. Conventional memory is free RAM. Persistent memory
+    /// is usable RAM that happens to be non-volatile.
+    ///
+    /// Runtime services stay mapped: `SetVirtualAddressMap` still calls into
+    /// them. MMIO is devices. ACPI non-volatile and unusable ranges are not
+    /// RAM. Loader code and data are this image. ACPI reclaim could be taken
+    /// after the tables are parsed; that is not done yet.
     pub fn available_post_exit_boot_services(&self) -> bool {
         use EfiMemoryType::*;
         matches!(
@@ -92,10 +103,11 @@ impl EfiMemoryType {
 }
 
 pub fn get_memory_map(st: &EfiSystemTable) -> Result<(RangeSet, u64)> {
-
-    // Declare variables so we can send them to `get_memory_map`
-    // to receive the mutated values back
-    let mut memory_map = [0u8; 8 * 1024];
+    // One shot, no retry. 8 KiB holds a desktop firmware map. A server
+    // map that does not fit comes back as an error from `GetMemoryMap`
+    // rather than a partial map we might exit boot services on.
+    const MEMORY_MAP_BYTES: usize = 8 * 1024;
+    let mut memory_map = [0u8; MEMORY_MAP_BYTES];
     let mut key = 0;
     let mut mmap_size = core::mem::size_of_val(&memory_map) as u64;
     let mut desc_size = 0;
@@ -129,11 +141,18 @@ pub fn get_memory_map(st: &EfiSystemTable) -> Result<(RangeSet, u64)> {
                 memory_map[offset as usize..].as_ptr() as *const EfiMemoryDescriptor
             )
         };
-        let r#type: EfiMemoryType = entry.typ.into();
+        let r#type = match EfiMemoryType::try_from(entry.typ) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
         if r#type.available_post_exit_boot_services() {
             let start = entry.physical_start;
             let end = entry.physical_start + (entry.number_of_pages * EFI_PAGE_SIZE);
-            rs.insert(Range { start, end, descriptor: entry });
+            rs.insert(Range {
+                start,
+                end,
+                descriptor: entry,
+            });
         }
     }
 
@@ -149,10 +168,9 @@ pub fn get_memory_map(st: &EfiSystemTable) -> Result<(RangeSet, u64)> {
 /// Identity maps all memory at `offset` and then informs UEFI
 /// of this mapping, enabling it.
 pub fn set_memory_map(st: &EfiSystemTable, range_set: &mut RangeSet, offset: u64) -> Result<()> {
-
     range_set.id_map(offset);
 
-    // Create a max size array, and then get the amount of 
+    // Create a max size array, and then get the amount of
     // descriptors in use, and use that.
     let mut fullmap = [EfiMemoryDescriptor::default(); 256];
     let cnt = range_set.to_descriptors(&mut fullmap);
@@ -162,18 +180,22 @@ pub fn set_memory_map(st: &EfiSystemTable, range_set: &mut RangeSet, offset: u64
         crate::println!("{:#X?} -> {:#X?}", i.physical_start, i.virtual_start);
     }
 
-    // Setup arguments for SetVirtualAddressMap 
+    // Setup arguments for SetVirtualAddressMap
     let map_size = core::mem::size_of_val(map);
     let desc_ver = 1;
     let desc_size = core::mem::size_of::<EfiMemoryDescriptor>();
 
     if desc_size * map.len() != map_size {
-        return Err(Error::MemoryMapInvalidSize)
+        return Err(Error::MemoryMapInvalidSize);
     }
 
     unsafe {
-        let ret = ((*st.runtime_services).set_virtual_address_map)(map_size, desc_size, desc_ver, 
-                                                                map as *const [EfiMemoryDescriptor]);
+        let ret = ((*st.runtime_services).set_virtual_address_map)(
+            map_size,
+            desc_size,
+            desc_ver,
+            map as *const [EfiMemoryDescriptor],
+        );
         if ret.0 != 0 {
             return Err(Error::CouldntSetVirtualAddressMap(ret));
         }

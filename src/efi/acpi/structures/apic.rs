@@ -33,6 +33,17 @@ bitflags! {
         const ONLINE_CAPABLE = 1 << 1;
     }
 }
+
+bitflags! {
+    /// Flags in the MADT header, not the per-processor [`LocalApicFlags`].
+    ///
+    /// `PCAT_COMPAT` means a legacy dual-8259 is also wired. Those pins
+    /// have to be masked before the I/O APIC is used, or each IRQ arrives
+    /// twice.
+    pub struct MadtFlags: u32 {
+        const PCAT_COMPAT = 1 << 0;
+    }
+}
 bitflags! {
     pub struct OtherApicFlags: u16 {
         /// If set then the interrupt is active when low
@@ -114,4 +125,27 @@ pub struct LocalX2Apic {
     /// same as Local APIC Flags
     pub flags: LocalApicFlags,
     pub acpi_id: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_case]
+    fn madt_header_flag_is_pcat_compat() {
+        assert!(MadtFlags::from_bits_truncate(1).contains(MadtFlags::PCAT_COMPAT));
+        assert!(!MadtFlags::empty().contains(MadtFlags::PCAT_COMPAT));
+        // Reserved bits must not invent PCAT_COMPAT.
+        assert!(!MadtFlags::from_bits_truncate(1 << 2).contains(MadtFlags::PCAT_COMPAT));
+    }
+
+    #[test_case]
+    fn online_capable_is_not_enabled() {
+        assert!(LocalApicFlags::ENABLED.contains(LocalApicFlags::ENABLED));
+        // A core that can be hot-plugged later is not a core that is
+        // running now. The MADT walk only counts ENABLED.
+        assert!(!LocalApicFlags::ONLINE_CAPABLE.contains(LocalApicFlags::ENABLED));
+        let both = LocalApicFlags::ENABLED | LocalApicFlags::ONLINE_CAPABLE;
+        assert!(both.contains(LocalApicFlags::ENABLED));
+    }
 }

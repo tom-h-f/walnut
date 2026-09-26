@@ -1,10 +1,20 @@
+//! Find the RSDP from the UEFI configuration table and walk the XSDT.
+//!
+//! The ACPI 2.0 GUID is preferred. The 1.0 GUID is only a fallback, and
+//! `RsdpExtended` still rejects a revision below 2: the XSDT pointer is
+//! not in the 1.0 structure.
+//!
+//! Each XSDT entry is an 8-byte physical address. A length that is not a
+//! multiple of 8 is a truncated pointer, so that is an error rather than
+//! a short read.
+
 use super::*;
 use core::mem::size_of;
 
 pub mod structures;
 use structures::{Madt, Rsdp, RsdpExtended, Table, TableType};
 
-unsafe fn get_acpi_table() -> Option<PhysAddr> {
+unsafe fn get_acpi_table() -> Result<PhysAddr> {
     // ACPI 2.0 GUID
     const EFI_ACPI_TABLE_GUID: EfiGuid = EfiGuid(
         0x8868e871,
@@ -22,10 +32,10 @@ unsafe fn get_acpi_table() -> Option<PhysAddr> {
 
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     if st.is_null() {
-        panic!("unable to retreive EFI_SYSTEM_TABLE");
+        return Err(Error::CouldntAccessSystemTable);
     }
 
-    let tables = unsafe { core::slice::from_raw_parts((*st).tables, (*st).number_of_tables) };
+    let tables = core::slice::from_raw_parts((*st).tables, (*st).number_of_tables);
 
     // Attempt to find the table with the ACPI 2.0 GUID, if can't find
     // attempt to find table with ACPI 1.0 GUID.
@@ -42,16 +52,15 @@ unsafe fn get_acpi_table() -> Option<PhysAddr> {
                 })
         })
         .map(|a| PhysAddr(a as u64))
+        .ok_or(Error::RsdpNotFound)
 }
-
 
 pub unsafe fn init() -> Result<()> {
     // Get the ACPI base address from EFI
-    let rsdp_addr = get_acpi_table().ok_or(Error::RsdpNotFound)?;
+    let rsdp_addr = get_acpi_table()?;
 
     // Read the ACPI table at the base address
     let rsdp = RsdpExtended::from_addr(rsdp_addr)?;
-
 
     // Get XSDT
     let (_xsdt, typ, x_addr, len) = Table::from_addr(PhysAddr(rsdp.xsdt_address))?;
@@ -82,14 +91,14 @@ pub unsafe fn init() -> Result<()> {
         match typ {
             TableType::Madt => {
                 let _madt = Madt::from_addr(addr, len)?;
-            },
+            }
             TableType::Rsdp => {
                 let _rsdp = Rsdp::from_addr(addr)?;
-            },
+            }
             TableType::RsdpExtended => {
                 let _rsdp = RsdpExtended::from_addr(addr)?;
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 
